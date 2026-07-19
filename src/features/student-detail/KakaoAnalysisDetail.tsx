@@ -185,6 +185,19 @@ export function KakaoAnalysisDetail({
         </span>
       </div>
 
+      {!editing && Boolean(analysis.result.warnings?.length) && (
+        <div className="rounded-card border border-warning/30 bg-warning-soft p-4">
+          <h3 className="mb-1.5 text-label font-semibold text-warning">⚠ 검토 필요 사항</h3>
+          <ul className="list-disc space-y-1 pl-5">
+            {analysis.result.warnings?.map((w, i) => (
+              <li key={i} className="text-body text-warning">
+                {w}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {(saveMutation.isError || finalizeMutation.isError || regenerateMutation.isError) && (
         <p className="rounded-field bg-danger-soft px-3 py-2 text-body text-danger">
           처리에 실패했습니다. 다시 시도해 주세요.

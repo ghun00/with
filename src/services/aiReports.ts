@@ -47,6 +47,12 @@ export async function fetchCounselReports(studentId: string): Promise<CounselRep
   return (data ?? []) as CounselReport[]
 }
 
+// 검증 패스 경고를 문서 하단 섹션으로 변환 — 사용자가 검토 후 에디터에서 삭제한다
+function warningsSection(warnings?: string[]): CounselReportSection[] {
+  if (!warnings?.length) return []
+  return [{ name: '⚠ 검토 필요 사항', content: warnings.map((w) => `- ${w}`).join('\n') }]
+}
+
 // AI 결과(고정 필드)를 편집 문서의 섹션 배열로 변환한다 — AI 계약은 그대로 두고 UI 진입 시점에 변환.
 // 상담 일시는 보고서 기본정보(counsel_date)로 이동했으므로 섹션에서 제외한다.
 // 목록형 항목은 섹션 기본 형식(글머리 기호/체크리스트) 마커로 직렬화한다 (editReport.md 3차 §4).
@@ -63,6 +69,7 @@ export function counselResultToSections(result: CounselReportResult): CounselRep
     },
     { name: '다음 상담 계획', content: result.next_plan },
     { name: '1Page Documentation', content: result.summary },
+    ...warningsSection(result.warnings),
   ]
 }
 
@@ -135,7 +142,10 @@ export async function fetchMonthlyReports(studentId: string): Promise<MonthlyRep
 
 // AI 월간 보고서 결과(고정 7개 목차)를 편집 문서의 섹션 배열로 변환한다
 export function monthlyResultToSections(result: MonthlyReportResult): CounselReportSection[] {
-  return MONTHLY_REPORT_SECTIONS.map(({ key, label }) => ({ name: label, content: result[key] }))
+  return [
+    ...MONTHLY_REPORT_SECTIONS.map(({ key, label }) => ({ name: label, content: result[key] })),
+    ...warningsSection(result.warnings),
+  ]
 }
 
 async function requireUserId(): Promise<string> {
