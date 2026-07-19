@@ -12,7 +12,7 @@ import { CounselReportTab } from './CounselReportTab'
 import { KakaoAnalysisTab } from './KakaoAnalysisTab'
 import { MonthlyReportTab } from './MonthlyReportTab'
 import { FilesTab } from './FilesTab'
-import { PlaceholderTab } from './PlaceholderTab'
+import { ScheduleTab } from './ScheduleTab'
 import { Button } from '@/components/ui/Button'
 import { Tabs } from '@/components/ui/Tabs'
 import { Badge, STUDENT_STATUS_TONE } from '@/components/ui/Badge'
@@ -120,7 +120,7 @@ export function StudentDetailPage() {
         {tab === 'activity' && <ActivityTab studentId={student.id} />}
         {tab === 'counsel' && <CounselReportTab student={student} />}
         {tab === 'kakao' && <KakaoAnalysisTab studentId={student.id} />}
-        {tab === 'schedule' && <PlaceholderTab label="일정" phase="3차" />}
+        {tab === 'schedule' && <ScheduleTab studentId={student.id} />}
         {tab === 'monthly' && <MonthlyReportTab student={student} />}
         {tab === 'files' && <FilesTab studentId={student.id} />}
       </FadeIn>
