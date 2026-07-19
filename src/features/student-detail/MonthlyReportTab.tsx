@@ -1,30 +1,31 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { getAiService } from '@/services/ai'
 import {
   counselSectionContent,
-  createMonthlyReport,
   fetchCounselReports,
   fetchMonthlyReports,
   formatTargetMonth,
+  monthlyResultToSections,
 } from '@/services/aiReports'
 import { fetchMemos } from '@/services/memos'
 import { fetchStudentActivities } from '@/services/studentActivities'
 import { formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
-import { AI_REPORT_STATUS_TONE, Badge } from '@/components/ui/Badge'
+import { Badge } from '@/components/ui/Badge'
 import { Input, Label, Textarea } from '@/components/ui/Field'
 import { ListItem, SectionHeader } from '@/components/ui/ListItem'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FadeIn } from '@/components/motion'
 import {
-  AI_REPORT_STATUS_LABEL,
+  COUNSEL_REPORT_METHOD_LABEL,
   STUDENT_ACTIVITY_STATUS_LABEL,
   type MonthlyReport,
+  type Student,
 } from '@/types'
 import { AiGeneratingIndicator } from './AiGeneratingIndicator'
-import { MonthlyReportDetail } from './MonthlyReportDetail'
+import { ReportEditorModal, type ReportEditorDraft } from './ReportEditorModal'
 
 const GENERATE_MESSAGES = [
   '한 달간의 기록을 모으고 있습니다…',
@@ -89,38 +90,50 @@ async function buildMonthlyContext(
   return lines.join('\n')
 }
 
-export function MonthlyReportTab({
-  studentId,
-  studentName,
-}: {
-  studentId: string
-  studentName: string
-}) {
-  const queryClient = useQueryClient()
+function reportToDraft(report: MonthlyReport): ReportEditorDraft {
+  return {
+    kind: 'monthly',
+    reportId: report.id,
+    title: report.title,
+    method: report.method,
+    targetMonth: report.target_month,
+    authorName: report.author?.name,
+    sections: report.result.sections,
+    sourceText: report.source_text,
+  }
+}
+
+export function MonthlyReportTab({ student }: { student: Student }) {
   const [creating, setCreating] = useState(false)
   const [targetMonth, setTargetMonth] = useState(lastMonth)
   const [note, setNote] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [existing, setExisting] = useState<MonthlyReport | null>(null)
+  const [editorDraft, setEditorDraft] = useState<ReportEditorDraft | null>(null)
 
   const { data: reports, isLoading } = useQuery({
-    queryKey: ['monthlyReports', studentId],
-    queryFn: () => fetchMonthlyReports(studentId),
+    queryKey: ['monthlyReports', student.id],
+    queryFn: () => fetchMonthlyReports(student.id),
   })
 
+  // AI 생성은 저장하지 않고 결과가 입력된 편집 상태의 Report Modal을 연다 — 검토·수정 후 저장 (editReport.md 4차 §8)
   const generateMutation = useMutation({
     mutationFn: async () => {
-      const context = await buildMonthlyContext(studentId, targetMonth, note)
+      const context = await buildMonthlyContext(student.id, targetMonth, note)
       const result = await getAiService().generateMonthlyReport(context)
-      return createMonthlyReport({ studentId, targetMonth, sourceText: context, result })
+      return { context, result }
     },
-    onSuccess: (newId) => {
+    onSuccess: ({ context, result }) => {
+      setEditorDraft({
+        kind: 'monthly',
+        title: `${formatTargetMonth(targetMonth)} 월간보고서`,
+        method: 'ai',
+        targetMonth,
+        sections: monthlyResultToSections(result),
+        sourceText: context,
+      })
       setCreating(false)
       setNote('')
       setExisting(null)
-      void queryClient.invalidateQueries({ queryKey: ['monthlyReports', studentId] })
-      void queryClient.invalidateQueries({ queryKey: ['activities', studentId] })
-      setSelectedId(newId)
     },
   })
 
@@ -133,18 +146,6 @@ export function MonthlyReportTab({
     generateMutation.mutate()
   }
 
-  const selected = reports?.find((r) => r.id === selectedId)
-  if (selected) {
-    return (
-      <MonthlyReportDetail
-        report={selected}
-        studentId={studentId}
-        studentName={studentName}
-        onBack={() => setSelectedId(null)}
-      />
-    )
-  }
-
   if (generateMutation.isPending) {
     return <AiGeneratingIndicator messages={GENERATE_MESSAGES} />
   }
@@ -155,7 +156,8 @@ export function MonthlyReportTab({
         <div className="rounded-card border border-line bg-surface p-5 shadow-card">
           <h3 className="mb-1 text-heading">월간 보고서 생성</h3>
           <p className="mb-4 text-body text-fg-secondary">
-            대상 월의 상담·활동·메모 기록을 모아 학부모 전달용 보고서 초안을 작성합니다.
+            대상 월의 상담·활동·메모 기록을 모아 학부모 전달용 보고서 초안을 작성합니다. 생성된
+            내용은 편집 화면에서 검토·수정 후 저장됩니다.
           </p>
           {generateMutation.isError && (
             <p className="mb-3 rounded-field bg-danger-soft px-3 py-2 text-body text-danger">
@@ -175,7 +177,7 @@ export function MonthlyReportTab({
                   onClick={() => {
                     setCreating(false)
                     setExisting(null)
-                    setSelectedId(existing.id)
+                    setEditorDraft(reportToDraft(existing))
                   }}
                 >
                   기존 보고서 보기
@@ -248,13 +250,16 @@ export function MonthlyReportTab({
             {reports.map((report) => (
               <li key={report.id}>
                 <ListItem
-                  onClick={() => setSelectedId(report.id)}
-                  title={`${formatTargetMonth(report.target_month)} 월간 보고서`}
-                  subtitle={`${formatDateTime(report.created_at)} 생성`}
+                  onClick={() => setEditorDraft(reportToDraft(report))}
+                  title={report.title || `${formatTargetMonth(report.target_month)} 월간보고서`}
+                  subtitle={[
+                    report.author?.name,
+                    `수정 ${formatDateTime(report.updated_at)}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                   trailing={
-                    <Badge tone={AI_REPORT_STATUS_TONE[report.status]}>
-                      {AI_REPORT_STATUS_LABEL[report.status]}
-                    </Badge>
+                    <Badge tone="outline">{COUNSEL_REPORT_METHOD_LABEL[report.method]}</Badge>
                   }
                 />
               </li>
@@ -262,6 +267,12 @@ export function MonthlyReportTab({
           </ul>
         </div>
       )}
+
+      <ReportEditorModal
+        draft={editorDraft}
+        student={student}
+        onClose={() => setEditorDraft(null)}
+      />
     </div>
   )
 }

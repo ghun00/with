@@ -1,12 +1,13 @@
 import { getSupabase } from '@/lib/supabase'
 import { logActivity } from '@/services/activities'
-import type {
-  ActivityType,
-  CounselReport,
-  CounselReportMethod,
-  CounselReportSection,
-  KakaoAnalysis,
-  MonthlyReport,
+import {
+  MONTHLY_REPORT_SECTIONS,
+  type ActivityType,
+  type CounselReport,
+  type CounselReportMethod,
+  type CounselReportSection,
+  type KakaoAnalysis,
+  type MonthlyReport,
 } from '@/types'
 import type {
   CounselReportResult,
@@ -85,11 +86,16 @@ export async function fetchMonthlyReports(studentId: string): Promise<MonthlyRep
   const supabase = getSupabase()
   const { data, error } = await supabase
     .from('monthly_reports')
-    .select('*')
+    .select('*, author:profiles(id, name, avatar_url)')
     .eq('student_id', studentId)
     .order('target_month', { ascending: false })
   if (error) throw error
   return (data ?? []) as MonthlyReport[]
+}
+
+// AI 월간 보고서 결과(고정 7개 목차)를 편집 문서의 섹션 배열로 변환한다
+export function monthlyResultToSections(result: MonthlyReportResult): CounselReportSection[] {
+  return MONTHLY_REPORT_SECTIONS.map(({ key, label }) => ({ name: label, content: result[key] }))
 }
 
 async function requireUserId(): Promise<string> {
@@ -182,9 +188,11 @@ export async function createKakaoAnalysis(params: {
 
 export async function createMonthlyReport(params: {
   studentId: string
+  title: string
+  method: CounselReportMethod
   targetMonth: string
   sourceText: string
-  result: MonthlyReportResult
+  sections: CounselReportSection[]
 }): Promise<string> {
   const supabase = getSupabase()
   const userId = await requireUserId()
@@ -192,9 +200,11 @@ export async function createMonthlyReport(params: {
     .from('monthly_reports')
     .insert({
       student_id: params.studentId,
+      title: params.title,
+      method: params.method,
       target_month: params.targetMonth,
       source_text: params.sourceText,
-      result: params.result,
+      result: { sections: params.sections },
       created_by: userId,
     })
     .select('id')
@@ -203,9 +213,26 @@ export async function createMonthlyReport(params: {
   await logActivity({
     studentId: params.studentId,
     type: 'report_generated',
-    summary: `${formatTargetMonth(params.targetMonth)} 월간 보고서 생성`,
+    summary: params.title,
   })
   return data.id as string
+}
+
+export async function updateMonthlyReport(params: {
+  id: string
+  title: string
+  sections: CounselReportSection[]
+}): Promise<void> {
+  const supabase = getSupabase()
+  const { error } = await supabase
+    .from('monthly_reports')
+    .update({
+      title: params.title,
+      result: { sections: params.sections },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', params.id)
+  if (error) throw error
 }
 
 // 수정 저장: result 교체. 상태는 유지한다(확정본도 수정 허용)

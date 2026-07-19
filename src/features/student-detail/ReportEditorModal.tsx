@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createCounselReport, updateCounselReport } from '@/services/aiReports'
+import {
+  createCounselReport,
+  createMonthlyReport,
+  formatTargetMonth,
+  updateCounselReport,
+  updateMonthlyReport,
+} from '@/services/aiReports'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { formatDate } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
@@ -12,18 +18,23 @@ import {
   type Student,
 } from '@/types'
 
-// 편집 모달에 들어오는 문서: 기존 보고서(reportId 있음) 또는 미저장 신규 초안
-export interface CounselReportEditorDraft {
+// 상담보고서/월간 보고서가 공유하는 Report Modal 문서 (editReport.md 4차 §7)
+export type ReportKind = 'counsel' | 'monthly'
+
+// 모달에 들어오는 문서: 기존 보고서(reportId 있음) 또는 미저장 신규 초안
+export interface ReportEditorDraft {
+  kind: ReportKind
   reportId?: string
   title: string
   method: CounselReportMethod
-  counselDate: string | null
+  counselDate?: string | null // 상담보고서 전용
+  targetMonth?: string // 월간 보고서 전용 (YYYY-MM)
   authorName?: string
   sections: CounselReportSection[]
   sourceText: string
 }
 
-// 직접 작성 기본 템플릿 — 섹션별 기본 형식 포함 (editReport.md 3차 §3·§4)
+// 상담보고서 직접 작성 기본 템플릿 — 섹션별 기본 형식 포함 (editReport.md 3차 §3·§4)
 export const COUNSEL_TEMPLATE_SECTIONS: CounselReportSection[] = [
   { name: '상담 목적', content: '' },
   { name: '주요 논의', content: '- ' },
@@ -168,14 +179,14 @@ function HandleIcon() {
   )
 }
 
-// 문서 작성에 집중하는 노션식 단일 문서 에디터 모달.
-// 저장된 보고서는 열람 상태로 열리고, 편집 버튼으로 수정 상태에 진입한다 (editReport.md 3차 §6~9)
-export function CounselReportEditorModal({
+// GPT Canvas형 문서 작업 공간: 고정 헤더(제목+기능) + 본문 스크롤 + 열람/편집 상태.
+// 저장된 보고서는 열람 상태로 열리고, 편집 버튼으로 수정 상태에 진입한다 (editReport.md 4차)
+export function ReportEditorModal({
   draft,
   student,
   onClose,
 }: {
-  draft: CounselReportEditorDraft | null
+  draft: ReportEditorDraft | null
   student: Student
   onClose: () => void
 }) {
@@ -227,28 +238,40 @@ export function CounselReportEditorModal({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
-        title: title.trim(),
-        counselDate: counselDate || null,
-        sections: blocksToSections(blocks),
+      if (!draft) throw new Error('no draft')
+      const payload = { title: title.trim(), sections: blocksToSections(blocks) }
+      if (draft.kind === 'monthly') {
+        if (reportId) {
+          await updateMonthlyReport({ id: reportId, ...payload })
+          return reportId
+        }
+        return createMonthlyReport({
+          studentId: student.id,
+          method: draft.method,
+          targetMonth: draft.targetMonth ?? '',
+          sourceText: draft.sourceText,
+          ...payload,
+        })
       }
       if (reportId) {
-        await updateCounselReport({ id: reportId, ...payload })
+        await updateCounselReport({ id: reportId, counselDate: counselDate || null, ...payload })
         return reportId
       }
       return createCounselReport({
         studentId: student.id,
-        method: draft?.method ?? 'manual',
-        sourceText: draft?.sourceText ?? '',
+        method: draft.method,
+        counselDate: counselDate || null,
+        sourceText: draft.sourceText,
         ...payload,
       })
     },
     onSuccess: (id) => {
       setSavedId(id)
-      void queryClient.invalidateQueries({ queryKey: ['counselReports', student.id] })
+      const listKey = draft?.kind === 'monthly' ? 'monthlyReports' : 'counselReports'
+      void queryClient.invalidateQueries({ queryKey: [listKey, student.id] })
       void queryClient.invalidateQueries({ queryKey: ['activities', student.id] })
       setDirty(false)
-      // 저장 후에는 관리자가 보고서 형태로 열람하는 상태로 전환한다
+      // 저장 후에는 보고서 형태로 열람하는 상태로 전환한다
       setMode('view')
     },
   })
@@ -342,6 +365,9 @@ export function CounselReportEditorModal({
   }
 
   const handleListKeyDown = (index: number, block: Block) => (e: React.KeyboardEvent) => {
+    // 한글 등 IME 조합 중 Enter로 글자를 확정하면 브라우저가 keydown(Enter)을
+    // 조합 확정용과 실제 입력용으로 두 번 보낼 수 있다 — 조합 중에는 무시한다.
+    if (e.nativeEvent.isComposing) return
     if (e.key === 'Enter') {
       e.preventDefault()
       // 빈 항목에서 Enter: 목록을 끝내고 일반 문단으로 전환
@@ -371,12 +397,20 @@ export function CounselReportEditorModal({
     }
   }
 
+  const periodLabel = draft?.kind === 'monthly' ? '대상 기간' : '상담 일시'
+  const periodValue =
+    draft?.kind === 'monthly'
+      ? draft.targetMonth
+        ? formatTargetMonth(draft.targetMonth)
+        : '-'
+      : counselDate
+        ? formatDate(counselDate)
+        : '-'
+
   const metaText = () =>
     [
-      `대상 학생: ${student.name} · ${student.school} ${student.grade}`.trim(),
-      `상담 일시: ${counselDate ? formatDate(counselDate) : '-'}`,
-      `담당 컨설턴트: ${authorName}`,
-      `작성 방식: ${COUNSEL_REPORT_METHOD_LABEL[draft?.method ?? 'manual']}`,
+      `${student.name} · ${student.school} ${student.grade}`.trim(),
+      `${periodLabel} ${periodValue}  |  담당 컨설턴트 ${authorName}  |  ${COUNSEL_REPORT_METHOD_LABEL[draft?.method ?? 'manual']}`,
     ].join('\n')
 
   const bodyPlainText = () =>
@@ -390,34 +424,25 @@ export function CounselReportEditorModal({
       .join('\n')
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(`${title}\n\n${metaText()}\n${bodyPlainText()}`)
+    await navigator.clipboard.writeText(`${title}\n${metaText()}\n${bodyPlainText()}`)
     setCopied(true)
     window.clearTimeout(copiedTimer.current)
     copiedTimer.current = window.setTimeout(() => setCopied(false), 1500)
   }
 
-  const handleDownload = () => {
-    const body = blocks
-      .map((b) => {
-        if (b.type === 'heading') return `\n### ${b.text}\n`
-        if (b.type === 'bullet') return `- ${b.text}`
-        if (b.type === 'check') return `- [${b.checked ? 'x' : ' '}] ${b.text}`
-        return b.text
-      })
-      .join('\n')
-    const meta = metaText()
-      .split('\n')
-      .map((line) => `> ${line}`)
-      .join('\n')
-    const blob = new Blob([`# ${title}\n\n${meta}\n${body}\n`], {
-      type: 'text/markdown;charset=utf-8',
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${(title || '상담보고서').replace(/[\\/:*?"<>|]/g, '_')}.md`
-    a.click()
-    URL.revokeObjectURL(url)
+  // PDF 다운로드: 보고서 전용 인쇄 스타일(@media print)로 출력하고,
+  // 파일명은 document.title을 통해 "{일자}_{학생명}_{보고서종류}"로 지정한다
+  const handlePdf = () => {
+    const base =
+      draft?.kind === 'monthly'
+        ? `${draft.targetMonth ? formatTargetMonth(draft.targetMonth) : ''}_${student.name}_월간보고서`
+        : `${counselDate ? formatDate(counselDate) : formatDate(new Date())}_${student.name}_상담보고서`
+    const prev = document.title
+    document.title = base
+    window.print()
+    window.setTimeout(() => {
+      document.title = prev
+    }, 500)
   }
 
   const editing = mode === 'edit'
@@ -427,7 +452,7 @@ export function CounselReportEditorModal({
   return (
     <AnimatePresence>
       {draft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="report-overlay fixed inset-0 z-50 flex items-center justify-center p-4 max-sm:p-0">
           <motion.div
             className="absolute inset-0 bg-fg/40"
             initial={{ opacity: 0 }}
@@ -439,109 +464,125 @@ export function CounselReportEditorModal({
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label={title || '상담보고서'}
-            className="relative flex h-[90vh] w-full max-w-3xl flex-col rounded-modal bg-surface shadow-float"
+            aria-label={title || '보고서'}
+            className="report-panel relative flex h-[93vh] w-full max-w-3xl flex-col rounded-modal bg-surface shadow-float max-sm:h-dvh max-sm:max-w-none max-sm:rounded-none"
             initial={{ opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            {/* 상단 버튼 바 — 상태별 노출 (신규 작성: 저장·닫기 / 열람: 복사·다운로드·편집·닫기 / 저장본 편집: 저장·취소·닫기) */}
-            <div className="flex items-center justify-end gap-2 border-b border-line px-6 py-3">
+            {/* 고정 헤더: 제목(좌) + 기능(우)을 한 행에 통합 (editReport.md 4차 §1·§2) */}
+            <div className="flex shrink-0 items-center gap-3 border-b border-line px-5 py-3">
               {editing ? (
-                <>
-                  {reportId && (
-                    <Button variant="secondary" size="sm" onClick={cancelEditing}>
-                      취소
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    disabled={!title.trim() || saveMutation.isPending}
-                    onClick={() => saveMutation.mutate()}
-                  >
-                    {saveMutation.isPending ? '저장 중...' : '저장'}
-                  </Button>
-                </>
+                <input
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value)
+                    touch()
+                  }}
+                  placeholder="보고서 제목"
+                  className="min-w-0 flex-1 bg-transparent text-heading text-fg outline-none placeholder:text-fg-disabled"
+                />
               ) : (
-                <>
-                  <button
-                    onClick={() => void handleCopy()}
-                    title={copied ? '복사됨' : '복사'}
-                    className="rounded-field p-1.5 text-fg-tertiary transition-colors hover:bg-sunken hover:text-fg"
-                    aria-label="복사"
-                  >
-                    {copied ? <span className="text-caption font-medium text-fg">복사됨</span> : <CopyIcon />}
-                  </button>
-                  <button
-                    onClick={handleDownload}
-                    title="다운로드"
-                    className="rounded-field p-1.5 text-fg-tertiary transition-colors hover:bg-sunken hover:text-fg"
-                    aria-label="다운로드"
-                  >
-                    <DownloadIcon />
-                  </button>
-                  <Button variant="secondary" size="sm" onClick={startEditing}>
-                    편집
-                  </Button>
-                </>
+                <h2 className="min-w-0 flex-1 truncate text-heading text-fg">{title}</h2>
               )}
-              <button
-                onClick={tryClose}
-                className="ml-1 rounded-field p-1 text-fg-tertiary transition-colors hover:bg-sunken hover:text-fg"
-                aria-label="닫기"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
-                </svg>
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {editing ? (
+                  <>
+                    {dirty && (
+                      <span className="text-caption text-fg-tertiary max-sm:hidden">
+                        저장되지 않은 변경 사항
+                      </span>
+                    )}
+                    {reportId && (
+                      <Button variant="secondary" size="sm" onClick={cancelEditing}>
+                        취소
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      disabled={!title.trim() || saveMutation.isPending}
+                      onClick={() => saveMutation.mutate()}
+                    >
+                      {saveMutation.isPending ? '저장 중...' : '저장'}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => void handleCopy()}
+                      title={copied ? '복사됨' : '복사'}
+                      className="rounded-field p-1.5 text-fg-tertiary transition-colors hover:bg-sunken hover:text-fg"
+                      aria-label="복사"
+                    >
+                      {copied ? (
+                        <span className="text-caption font-medium text-fg">복사됨</span>
+                      ) : (
+                        <CopyIcon />
+                      )}
+                    </button>
+                    <button
+                      onClick={handlePdf}
+                      title="PDF 다운로드"
+                      className="rounded-field p-1.5 text-fg-tertiary transition-colors hover:bg-sunken hover:text-fg"
+                      aria-label="PDF 다운로드"
+                    >
+                      <DownloadIcon />
+                    </button>
+                    <Button variant="secondary" size="sm" onClick={startEditing}>
+                      편집
+                    </Button>
+                  </>
+                )}
+                <button
+                  onClick={tryClose}
+                  className="ml-1 rounded-field p-1 text-fg-tertiary transition-colors hover:bg-sunken hover:text-fg"
+                  aria-label="닫기"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            {/* 하나의 연속된 문서: 제목 → 기본정보 → 본문 */}
-            <div className="flex-1 overflow-y-auto px-10 py-8">
-              <div className="mx-auto max-w-2xl">
-                {editing ? (
-                  <input
-                    value={title}
-                    onChange={(e) => {
-                      setTitle(e.target.value)
-                      touch()
-                    }}
-                    placeholder="보고서 제목"
-                    className="w-full bg-transparent text-[26px] leading-9 font-bold text-fg outline-none placeholder:text-fg-disabled"
-                  />
-                ) : (
-                  <h1 className="text-[26px] leading-9 font-bold text-fg">{title}</h1>
-                )}
+            {/* 본문 스크롤 영역 — 제목이 헤더로 이동해 기본정보부터 시작 */}
+            <div className="report-scroll flex-1 overflow-y-auto px-10 py-7 max-sm:px-5">
+              <div className="print-area mx-auto max-w-2xl">
+                {/* 인쇄 전용 제목 (화면에서는 헤더에 표시) */}
+                <h1 className="mb-4 hidden text-[24px] leading-8 font-bold text-fg print:block">
+                  {title}
+                </h1>
 
-                {/* 보고서 기본정보 — 문서 메타데이터 (editReport.md 3차 §2) */}
-                <div className="mt-4 mb-2 grid grid-cols-[96px_1fr] items-center gap-y-1.5 border-b border-line/60 pb-5 text-[13px]">
-                  <span className="text-fg-tertiary">대상 학생</span>
-                  <span className="text-fg-secondary">
+                {/* 보고서 기본정보 — 최대 두 줄 (editReport.md 4차 §3) */}
+                <div className="border-b border-line/60 pb-4">
+                  <p className="text-[15px] font-medium text-fg">
                     {student.name} · {student.school} {student.grade}
-                  </span>
-                  <span className="text-fg-tertiary">상담 일시</span>
-                  {editing ? (
-                    <input
-                      type="date"
-                      value={counselDate}
-                      onChange={(e) => {
-                        setCounselDate(e.target.value)
-                        touch()
-                      }}
-                      className="w-40 rounded-field border border-line bg-surface px-2 py-1 text-[13px] text-fg-secondary transition-colors hover:border-line-strong focus:border-accent-500 focus:outline-none"
-                    />
-                  ) : (
-                    <span className="text-fg-secondary">
-                      {counselDate ? formatDate(counselDate) : '-'}
+                  </p>
+                  <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-fg-secondary">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-fg-tertiary">{periodLabel}</span>
+                      {editing && draft.kind === 'counsel' ? (
+                        <input
+                          type="date"
+                          value={counselDate}
+                          onChange={(e) => {
+                            setCounselDate(e.target.value)
+                            touch()
+                          }}
+                          className="rounded-field border border-line bg-surface px-2 py-0.5 text-[13px] text-fg-secondary transition-colors hover:border-line-strong focus:border-accent-500 focus:outline-none"
+                        />
+                      ) : (
+                        <span>{periodValue}</span>
+                      )}
                     </span>
-                  )}
-                  <span className="text-fg-tertiary">담당 컨설턴트</span>
-                  <span className="text-fg-secondary">{authorName}</span>
-                  <span className="text-fg-tertiary">작성 방식</span>
-                  <span className="text-fg-secondary">
-                    {COUNSEL_REPORT_METHOD_LABEL[draft.method]}
-                  </span>
+                    <span className="text-line-strong">|</span>
+                    <span>
+                      <span className="text-fg-tertiary">담당 컨설턴트</span> {authorName}
+                    </span>
+                    <span className="text-line-strong">|</span>
+                    <span>{COUNSEL_REPORT_METHOD_LABEL[draft.method]}</span>
+                  </p>
                 </div>
 
                 {saveMutation.isError && (
@@ -555,7 +596,7 @@ export function CounselReportEditorModal({
                     <div key={block.key} className="group relative">
                       {editing && (
                         <>
-                          {/* 블록 핸들: hover/선택 시에만 노출 (editReport.md 3차 §5) */}
+                          {/* 블록 핸들: hover/선택 시에만 노출 */}
                           <button
                             onClick={() => setMenuKey(menuKey === block.key ? null : block.key)}
                             className={`absolute top-1 -left-7 rounded-field p-0.5 text-fg-tertiary transition-opacity hover:bg-sunken hover:text-fg ${menuKey === block.key ? 'opacity-100' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'}`}
@@ -616,6 +657,8 @@ export function CounselReportEditorModal({
                             value={block.text}
                             onChange={(e) => updateBlock(block.key, { text: e.target.value })}
                             onKeyDown={(e) => {
+                              // IME 조합 확정 Enter는 무시 (한글 입력 시 이중 실행 방지)
+                              if (e.nativeEvent.isComposing) return
                               // Enter: 소제목 아래에 새 문단을 만들고 바로 본문 작성
                               if (e.key === 'Enter') {
                                 e.preventDefault()
@@ -639,6 +682,8 @@ export function CounselReportEditorModal({
                               autoResize(e.currentTarget)
                             }}
                             onKeyDown={(e) => {
+                              // IME 조합 확정 Enter는 무시 (한글 입력 시 이중 실행 방지)
+                              if (e.nativeEvent.isComposing) return
                               // 빈 문단에서 Backspace: 문단을 지우고 이전 블록으로 포커스 이동
                               if (e.key === 'Backspace' && block.text === '' && blocks.length > 1) {
                                 e.preventDefault()
@@ -658,7 +703,7 @@ export function CounselReportEditorModal({
                         ))}
 
                       {(block.type === 'bullet' || block.type === 'check') && (
-                        <div className="flex items-start gap-2.5 py-1">
+                        <div className="doc-item flex items-start gap-2.5 py-1">
                           {block.type === 'bullet' ? (
                             <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-fg-secondary" />
                           ) : (

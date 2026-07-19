@@ -240,17 +240,21 @@ export interface KakaoAnalysis {
   finalized_at: string | null
 }
 
+// 월간 보고서도 상담보고서와 동일한 자유 편집 섹션 문서 (editReport.md 4차)
 export interface MonthlyReport {
   id: string
   student_id: string
+  title: string
+  method: CounselReportMethod
   target_month: string // YYYY-MM
   source_text: string
-  result: MonthlyReportResult
+  result: { sections: CounselReportSection[] }
   status: AiReportStatus
   created_by: string
   created_at: string
   updated_at: string
   finalized_at: string | null
+  author?: Profile
 }
 
 // 월간 보고서 목차 순서·라벨 (렌더링/복사/인쇄에서 공용, prd §6.12)

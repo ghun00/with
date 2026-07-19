@@ -120,7 +120,7 @@ export function StudentDetailPage() {
         {tab === 'counsel' && <CounselReportTab student={student} />}
         {tab === 'kakao' && <KakaoAnalysisTab studentId={student.id} />}
         {tab === 'schedule' && <PlaceholderTab label="일정" phase="3차" />}
-        {tab === 'monthly' && <MonthlyReportTab studentId={student.id} studentName={student.name} />}
+        {tab === 'monthly' && <MonthlyReportTab student={student} />}
         {tab === 'files' && <PlaceholderTab label="파일" phase="3차" />}
       </FadeIn>
 

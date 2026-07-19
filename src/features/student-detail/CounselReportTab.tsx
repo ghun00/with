@@ -18,9 +18,9 @@ import { AiSourceInput } from './AiSourceInput'
 import { AiGeneratingIndicator } from './AiGeneratingIndicator'
 import {
   COUNSEL_TEMPLATE_SECTIONS,
-  CounselReportEditorModal,
-  type CounselReportEditorDraft,
-} from './CounselReportEditorModal'
+  ReportEditorModal,
+  type ReportEditorDraft,
+} from './ReportEditorModal'
 
 const GENERATE_MESSAGES = [
   '상담 원문을 분석하고 있습니다…',
@@ -29,8 +29,9 @@ const GENERATE_MESSAGES = [
 ]
 
 // 직접 작성: 기본 템플릿이 적용된 빈 문서 (editReport.md 3차 §3·§6)
-function manualDraft(): CounselReportEditorDraft {
+function manualDraft(): ReportEditorDraft {
   return {
+    kind: 'counsel',
     title: `${formatDate(new Date())} 상담보고서`,
     method: 'manual',
     counselDate: new Date().toISOString().slice(0, 10),
@@ -39,8 +40,9 @@ function manualDraft(): CounselReportEditorDraft {
   }
 }
 
-function reportToDraft(report: CounselReport): CounselReportEditorDraft {
+function reportToDraft(report: CounselReport): ReportEditorDraft {
   return {
+    kind: 'counsel',
     reportId: report.id,
     title: report.title,
     method: report.method,
@@ -54,7 +56,7 @@ function reportToDraft(report: CounselReport): CounselReportEditorDraft {
 export function CounselReportTab({ student }: { student: Student }) {
   const [aiInputOpen, setAiInputOpen] = useState(false)
   const [sourceText, setSourceText] = useState('')
-  const [editorDraft, setEditorDraft] = useState<CounselReportEditorDraft | null>(null)
+  const [editorDraft, setEditorDraft] = useState<ReportEditorDraft | null>(null)
 
   const { data: reports, isLoading } = useQuery({
     queryKey: ['counselReports', student.id],
@@ -66,6 +68,7 @@ export function CounselReportTab({ student }: { student: Student }) {
     mutationFn: () => getAiService().generateCounselReport(sourceText.trim()),
     onSuccess: (result) => {
       setEditorDraft({
+        kind: 'counsel',
         title: `${result.counsel_date} 상담보고서`,
         method: 'ai',
         counselDate: result.counsel_date || null,
@@ -155,7 +158,7 @@ export function CounselReportTab({ student }: { student: Student }) {
         </div>
       )}
 
-      <CounselReportEditorModal
+      <ReportEditorModal
         draft={editorDraft}
         student={student}
         onClose={() => setEditorDraft(null)}
