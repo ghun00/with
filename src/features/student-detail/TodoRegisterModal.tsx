@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createStudentActivity } from '@/services/studentActivities'
 import { Button } from '@/components/ui/Button'
-import { Label, Select } from '@/components/ui/Field'
+import { Label } from '@/components/ui/Field'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { Modal } from '@/components/ui/Modal'
 import {
   STUDENT_ACTIVITY_CATEGORY_LABEL,
@@ -134,17 +135,15 @@ export function TodoRegisterModal({
         {renderList('컨설턴트 To Do', consultantTodos, 'c')}
         <div>
           <Label>활동 분류</Label>
-          <Select
+          <Dropdown<StudentActivityCategory>
+            options={(Object.keys(STUDENT_ACTIVITY_CATEGORY_LABEL) as StudentActivityCategory[]).map((c) => ({
+              value: c,
+              label: STUDENT_ACTIVITY_CATEGORY_LABEL[c],
+            }))}
             value={category}
-            onChange={(e) => setCategory(e.target.value as StudentActivityCategory)}
+            onChange={setCategory}
             className="w-56"
-          >
-            {(Object.keys(STUDENT_ACTIVITY_CATEGORY_LABEL) as StudentActivityCategory[]).map((c) => (
-              <option key={c} value={c}>
-                {STUDENT_ACTIVITY_CATEGORY_LABEL[c]}
-              </option>
-            ))}
-          </Select>
+          />
         </div>
       </div>
     </Modal>

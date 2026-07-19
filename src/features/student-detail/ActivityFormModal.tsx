@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createStudentActivity } from '@/services/studentActivities'
 import { Button } from '@/components/ui/Button'
-import { Input, Label, Select, Textarea } from '@/components/ui/Field'
+import { Input, Label, Textarea } from '@/components/ui/Field'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { Modal } from '@/components/ui/Modal'
 import {
   STUDENT_ACTIVITY_CATEGORY_LABEL,
@@ -22,14 +23,14 @@ export function ActivityFormModal({ open, onClose, studentId, onCreated }: Props
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [status, setStatus] = useState<StudentActivityStatus>('planned')
-  const [category, setCategory] = useState<StudentActivityCategory | ''>('')
+  const [category, setCategory] = useState<StudentActivityCategory | null>(null)
   const [dueDate, setDueDate] = useState('')
   const [detail, setDetail] = useState('')
 
   const reset = () => {
     setName('')
     setStatus('planned')
-    setCategory('')
+    setCategory(null)
     setDueDate('')
     setDetail('')
   }
@@ -40,7 +41,7 @@ export function ActivityFormModal({ open, onClose, studentId, onCreated }: Props
         studentId,
         name: name.trim(),
         status,
-        category: category as StudentActivityCategory,
+        category: category!,
         dueDate: dueDate || null,
         detail: detail.trim(),
       }),
@@ -89,24 +90,25 @@ export function ActivityFormModal({ open, onClose, studentId, onCreated }: Props
         </div>
         <div>
           <Label>현재 상태</Label>
-          <Select value={status} onChange={(e) => setStatus(e.target.value as StudentActivityStatus)}>
-            {Object.entries(STUDENT_ACTIVITY_STATUS_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </Select>
+          <Dropdown<StudentActivityStatus>
+            options={Object.entries(STUDENT_ACTIVITY_STATUS_LABEL).map(([value, label]) => ({
+              value: value as StudentActivityStatus,
+              label,
+            }))}
+            value={status}
+            onChange={setStatus}
+          />
         </div>
         <div>
           <Label required>활동 분류</Label>
-          <Select value={category} onChange={(e) => setCategory(e.target.value as StudentActivityCategory)}>
-            <option value="">선택</option>
-            {Object.entries(STUDENT_ACTIVITY_CATEGORY_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </Select>
+          <Dropdown<StudentActivityCategory>
+            options={Object.entries(STUDENT_ACTIVITY_CATEGORY_LABEL).map(([value, label]) => ({
+              value: value as StudentActivityCategory,
+              label,
+            }))}
+            value={category}
+            onChange={setCategory}
+          />
         </div>
         <div>
           <Label>마감일</Label>

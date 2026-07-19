@@ -5,12 +5,15 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { useGroup } from '@/features/group/GroupProvider'
 import { formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
-import { Select, Textarea } from '@/components/ui/Field'
+import { Textarea } from '@/components/ui/Field'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { MEMO_TAGS, type Memo, type MemoTag } from '@/types'
+
+const MEMO_TAG_OPTIONS = MEMO_TAGS.map((t) => ({ value: t, label: t }))
 
 export function MemoTab({ studentId }: { studentId: string }) {
   const queryClient = useQueryClient()
@@ -59,13 +62,7 @@ export function MemoTab({ studentId }: { studentId: string }) {
     <div className="space-y-4">
       <div className="rounded-card border border-line bg-surface p-4 shadow-card">
         <div className="mb-3 flex items-center gap-2">
-          <Select value={tag} onChange={(e) => setTag(e.target.value as MemoTag)} className="w-32">
-            {MEMO_TAGS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </Select>
+          <Dropdown<MemoTag> options={MEMO_TAG_OPTIONS} value={tag} onChange={setTag} className="w-32" />
         </div>
         <Textarea
           rows={3}
@@ -94,17 +91,12 @@ export function MemoTab({ studentId }: { studentId: string }) {
             <li key={memo.id} className="rounded-card border border-line bg-surface p-4 shadow-card">
               {editing?.id === memo.id ? (
                 <div>
-                  <Select
+                  <Dropdown<MemoTag>
+                    options={MEMO_TAG_OPTIONS}
                     value={editTag}
-                    onChange={(e) => setEditTag(e.target.value as MemoTag)}
+                    onChange={setEditTag}
                     className="mb-3 w-32"
-                  >
-                    {MEMO_TAGS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </Select>
+                  />
                   <Textarea rows={3} value={editContent} onChange={(e) => setEditContent(e.target.value)} />
                   <div className="mt-3 flex justify-end gap-2">
                     <Button variant="secondary" size="sm" onClick={() => setEditing(null)}>

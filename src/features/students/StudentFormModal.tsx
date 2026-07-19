@@ -4,7 +4,8 @@ import { fetchGroupMembers } from '@/services/groups'
 import { createStudent, updateStudent, type StudentInput } from '@/services/students'
 import { useGroup } from '@/features/group/GroupProvider'
 import { Button } from '@/components/ui/Button'
-import { Input, Label, Select } from '@/components/ui/Field'
+import { Input, Label } from '@/components/ui/Field'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { Modal } from '@/components/ui/Modal'
 import { formatPhoneInput } from '@/lib/format'
 import { STUDENT_STATUS_LABEL, type StudentListItem, type StudentStatus } from '@/types'
@@ -112,24 +113,22 @@ export function StudentFormModal({ open, onClose, student }: Props) {
         </div>
         <div>
           <Label required>학년</Label>
-          <Select value={form.grade} onChange={(e) => set('grade', e.target.value)}>
-            <option value="">선택</option>
-            {['1학년', '2학년', '3학년', 'N수'].map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </Select>
+          <Dropdown
+            options={['1학년', '2학년', '3학년', 'N수'].map((g) => ({ value: g, label: g }))}
+            value={form.grade || null}
+            onChange={(v) => set('grade', v)}
+          />
         </div>
         <div>
           <Label>관리 상태</Label>
-          <Select value={form.status} onChange={(e) => set('status', e.target.value as StudentStatus)}>
-            {Object.entries(STUDENT_STATUS_LABEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </Select>
+          <Dropdown<StudentStatus>
+            options={Object.entries(STUDENT_STATUS_LABEL).map(([value, label]) => ({
+              value: value as StudentStatus,
+              label,
+            }))}
+            value={form.status}
+            onChange={(v) => set('status', v)}
+          />
         </div>
         <div>
           <Label required>학생 연락처</Label>
@@ -153,25 +152,19 @@ export function StudentFormModal({ open, onClose, student }: Props) {
         </div>
         <div>
           <Label>주 담당 컨설턴트</Label>
-          <Select
-            value={form.primaryConsultantId ?? ''}
-            onChange={(e) => {
-              const id = e.target.value || null
+          <Dropdown
+            options={members.map((m) => ({ value: m.user_id, label: m.profile?.name || '이름 없음' }))}
+            value={form.primaryConsultantId}
+            onChange={(id) => {
               setForm((prev) => ({
                 ...prev,
                 primaryConsultantId: id,
                 coConsultantIds: prev.coConsultantIds.filter((c) => c !== id),
               }))
             }}
+            placeholder="미지정"
             disabled={!isOwner}
-          >
-            <option value="">미지정</option>
-            {members.map((m) => (
-              <option key={m.user_id} value={m.user_id}>
-                {m.profile?.name || '이름 없음'}
-              </option>
-            ))}
-          </Select>
+          />
           {!isOwner && <p className="mt-1 text-caption text-fg-tertiary">주 담당자 변경은 대표 관리자만 가능합니다.</p>}
         </div>
         <div>

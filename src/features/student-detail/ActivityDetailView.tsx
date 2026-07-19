@@ -14,7 +14,8 @@ import {
 } from '@/services/studentActivities'
 import { formatDate } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
-import { Input, Select, Textarea } from '@/components/ui/Field'
+import { Input, Textarea } from '@/components/ui/Field'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { Badge, STUDENT_ACTIVITY_STATUS_TONE } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import {
@@ -162,29 +163,25 @@ export function ActivityDetailView({
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="mb-1.5 block text-label text-fg-secondary">현재 상태</label>
-            <Select
+            <Dropdown<StudentActivityStatus>
+              options={Object.entries(STUDENT_ACTIVITY_STATUS_LABEL).map(([value, label]) => ({
+                value: value as StudentActivityStatus,
+                label,
+              }))}
               value={activity.status}
-              onChange={(e) => statusMutation.mutate(e.target.value as StudentActivityStatus)}
-            >
-              {Object.entries(STUDENT_ACTIVITY_STATUS_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
+              onChange={(v) => statusMutation.mutate(v)}
+            />
           </div>
           <div>
             <label className="mb-1.5 block text-label text-fg-secondary">활동 분류</label>
-            <Select
+            <Dropdown<StudentActivityCategory>
+              options={Object.entries(STUDENT_ACTIVITY_CATEGORY_LABEL).map(([value, label]) => ({
+                value: value as StudentActivityCategory,
+                label,
+              }))}
               value={activity.category}
-              onChange={(e) => categoryMutation.mutate(e.target.value as StudentActivityCategory)}
-            >
-              {Object.entries(STUDENT_ACTIVITY_CATEGORY_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
+              onChange={(v) => categoryMutation.mutate(v)}
+            />
           </div>
           <div>
             <label className="mb-1.5 block text-label text-fg-secondary">마감일</label>
