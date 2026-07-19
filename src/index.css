@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* WITH 디자인 토큰 — flex(fx) 스타일: 뉴트럴 무채색 + 절제된 액센트 블루
+   기준 문서: docs/superpowers/specs/2026-07-18-design-system.md */
+@theme {
+  --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
+    "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, Roboto,
+    "Helvetica Neue", "Segoe UI", "Malgun Gothic", sans-serif;
+
+  /* 서피스 */
+  --color-page: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-sunken: #f2f4f6;
+
+  /* 텍스트 */
+  --color-fg: #1a1c20;
+  --color-fg-secondary: #6b7280;
+  --color-fg-tertiary: #9ca1ab;
+  --color-fg-disabled: #c4c9d0;
+
+  /* 보더 */
+  --color-line: #e5e8eb;
+  --color-line-strong: #d1d6db;
+
+  /* 액센트 블루 — CTA, 선택 상태, 링크에만 절제 사용 */
+  --color-accent-50: #eef3ff;
+  --color-accent-100: #dce7ff;
+  --color-accent-200: #b8cdff;
+  --color-accent-400: #5c85ff;
+  --color-accent-500: #3d6afe;
+  --color-accent-600: #2b54e8;
+  --color-accent-700: #1f41c4;
+
+  /* 상태 */
+  --color-success: #0e9f6e;
+  --color-success-soft: #ecfdf5;
+  --color-warning: #d97706;
+  --color-warning-soft: #fffbeb;
+  --color-danger: #ef4444;
+  --color-danger-soft: #fef2f2;
+
+  /* 형태 */
+  --radius-field: 10px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-float: 0 8px 24px rgb(26 28 32 / 0.08);
+
+  /* 타이포 스케일 */
+  --text-display: 24px;
+  --text-display--line-height: 32px;
+  --text-display--font-weight: 700;
+  --text-display--letter-spacing: -0.01em;
+
+  --text-title: 20px;
+  --text-title--line-height: 28px;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.01em;
+
+  --text-heading: 16px;
+  --text-heading--line-height: 24px;
+  --text-heading--font-weight: 600;
+  --text-heading--letter-spacing: -0.01em;
+
+  --text-body: 14px;
+  --text-body--line-height: 22px;
+
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+  --text-label--font-weight: 500;
+
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-page text-fg text-body antialiased;
+  font-family: var(--font-sans);
+}
+
+/* 월간 보고서 PDF 저장: 인쇄 시 .print-area만 출력 */
+@media print {
+  body {
+    background: #fff;
+  }
+  body:has(.print-area) * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    padding: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
