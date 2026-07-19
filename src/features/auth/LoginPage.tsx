@@ -32,11 +32,11 @@ export function LoginPage() {
           <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-modal bg-fg text-title text-surface">
             W
           </div>
-          <h1 className="text-display">WITH</h1>
+          <h1 className="text-body">WITH</h1>
           <p className="mt-2 text-body text-fg-secondary">
-            학생부종합전형 컨설턴트를 위한
+            학생 관리 컨설턴트를 위한
             <br />
-            학생 관리 서비스
+            학생 관리 통합 서비스
           </p>
         </div>
 
