@@ -20,8 +20,9 @@ create index student_files_student_created_idx
   on public.student_files (student_id, created_at desc);
 
 -- =========================================================
--- 2. RLS: 메모 패턴 (select/insert는 담당자, delete는 업로더 본인 또는 그룹 owner)
+-- 2. RLS: 메모 패턴 준수 (0004) — select/insert는 담당자, delete는 업로더 본인 또는 그룹 owner
 --    파일명 변경 요구사항이 없어 update 정책은 두지 않는다.
+--    helper 함수로 교차 서브쿼리 회피 (0004_fix_rls_recursion.sql 참고)
 -- =========================================================
 alter table public.student_files enable row level security;
 
@@ -34,10 +35,7 @@ create policy "student_files_insert" on public.student_files
 create policy "student_files_delete" on public.student_files
   for delete to authenticated using (
     public.can_access_student(student_id)
-    and (uploader_id = auth.uid() or exists (
-      select 1 from public.students s
-      where s.id = student_id and public.is_group_owner(s.group_id)
-    ))
+    and (uploader_id = auth.uid() or public.is_group_owner(public.student_group_id(student_id)))
   );
 
 -- =========================================================
@@ -51,8 +49,9 @@ values ('student-files', 'student-files', false, 20971520)
 on conflict (id) do nothing;
 
 -- =========================================================
--- 4. Storage RLS: 경로 첫 세그먼트가 student_id이므로
---    can_access_student()만으로 검사 (교차 서브쿼리 없음 — 0004 재귀 패턴 준수)
+-- 4. Storage RLS: 경로 첫 세그먼트가 student_id이므로 helper로 추출
+--    select/insert는 담당자 권한으로, delete는 업로더 본인 또는 그룹 owner만
+--    (테이블 정책과 일관성 — storage API 직접 호출로 권한 우회 방지)
 -- =========================================================
 create policy "student_files_storage_select" on storage.objects
   for select to authenticated using (
@@ -67,5 +66,8 @@ create policy "student_files_storage_insert" on storage.objects
 create policy "student_files_storage_delete" on storage.objects
   for delete to authenticated using (
     bucket_id = 'student-files'
-    and public.can_access_student(((storage.foldername(name))[1])::uuid)
+    and (
+      owner_id = auth.uid()::text
+      or public.is_group_owner(public.student_group_id(((storage.foldername(name))[1])::uuid))
+    )
   );
