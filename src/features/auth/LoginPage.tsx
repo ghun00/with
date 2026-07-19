@@ -29,10 +29,10 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-page px-4">
       <div className="w-full max-w-sm">
         <div className="mb-10 text-center">
-          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-modal bg-fg text-title text-surface">
+          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-modal bg-fg text-title">
             W
           </div>
-          <h1 className="text-body">WITH</h1>
+          <h1 className="text-title">WITH</h1>
           <p className="mt-2 text-body text-fg-secondary">
             학생 관리 컨설턴트를 위한
             <br />
