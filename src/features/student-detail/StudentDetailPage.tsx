@@ -11,6 +11,7 @@ import { ActivityTab } from './ActivityTab'
 import { CounselReportTab } from './CounselReportTab'
 import { KakaoAnalysisTab } from './KakaoAnalysisTab'
 import { MonthlyReportTab } from './MonthlyReportTab'
+import { FilesTab } from './FilesTab'
 import { PlaceholderTab } from './PlaceholderTab'
 import { Button } from '@/components/ui/Button'
 import { Tabs } from '@/components/ui/Tabs'
@@ -121,7 +122,7 @@ export function StudentDetailPage() {
         {tab === 'kakao' && <KakaoAnalysisTab studentId={student.id} />}
         {tab === 'schedule' && <PlaceholderTab label="일정" phase="3차" />}
         {tab === 'monthly' && <MonthlyReportTab student={student} />}
-        {tab === 'files' && <PlaceholderTab label="파일" phase="3차" />}
+        {tab === 'files' && <FilesTab studentId={student.id} />}
       </FadeIn>
 
       <StudentFormModal open={editOpen} onClose={() => setEditOpen(false)} student={student} />
