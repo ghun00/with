@@ -201,6 +201,19 @@ export interface StudentActivityHistoryEvent {
   actor?: Profile
 }
 
+export interface StudentSchedule {
+  id: string
+  student_id: string
+  created_by: string
+  title: string
+  start_at: string
+  end_at: string | null
+  memo: string | null
+  created_at: string
+  updated_at: string
+  creator?: Profile
+}
+
 // AI 보고서 공통 상태 (prd §7: 생성 즉시 초안 저장 → 수정 → 확정)
 export type AiReportStatus = 'draft' | 'final'
 
