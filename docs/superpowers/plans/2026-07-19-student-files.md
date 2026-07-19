@@ -69,10 +69,7 @@ create policy "student_files_insert" on public.student_files
 create policy "student_files_delete" on public.student_files
   for delete to authenticated using (
     public.can_access_student(student_id)
-    and (uploader_id = auth.uid() or exists (
-      select 1 from public.students s
-      where s.id = student_id and public.is_group_owner(s.group_id)
-    ))
+    and (uploader_id = auth.uid() or public.is_group_owner(public.student_group_id(student_id)))
   );
 
 -- =========================================================
@@ -102,7 +99,10 @@ create policy "student_files_storage_insert" on storage.objects
 create policy "student_files_storage_delete" on storage.objects
   for delete to authenticated using (
     bucket_id = 'student-files'
-    and public.can_access_student(((storage.foldername(name))[1])::uuid)
+    and (
+      owner_id = auth.uid()::text
+      or public.is_group_owner(public.student_group_id(((storage.foldername(name))[1])::uuid))
+    )
   );
 ```
 
