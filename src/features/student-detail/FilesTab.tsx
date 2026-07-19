@@ -13,7 +13,6 @@ import { useGroup } from '@/features/group/GroupProvider'
 import { formatDateTime, formatFileSize } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { StaggerList, StaggerItem } from '@/components/motion'
@@ -117,7 +116,6 @@ export function FilesTab({ studentId }: { studentId: string }) {
                     <span className="truncate text-body font-medium text-fg">{file.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-caption text-fg-tertiary">
-                    <Avatar name={file.uploader?.name ?? ''} url={file.uploader?.avatar_url} size="sm" />
                     {file.uploader?.name} · {formatDateTime(file.created_at)} · {formatFileSize(file.size)}
                   </div>
                 </div>
