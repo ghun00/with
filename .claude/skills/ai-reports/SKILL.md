@@ -1,0 +1,19 @@
+---
+name: ai-reports
+description: 상담보고서·월간보고서·카카오톡 분석 작업 시 사용 — AiService persistence(counsel_reports/kakao_analyses/monthly_reports), ReportEditorModal 블록 에디터 직렬화, PDF export, 카카오톡 dedup 등 해당 기능 작업 때만 필요한 상세 지식.
+---
+
+`getAiService()` currently returns `mockAiService` (`src/services/ai/mock.ts`, 1.2s fake latency, `(목업)`/`확인 필요` data) implementing `CounselReportResult`/`KakaoAnalysisResult`/`MonthlyReportResult`. All tabs already consume the service through `getAiService()`, so a real Edge Function swap only needs the shapes preserved. `generateWeeklySummary` is defined on the contract but still unused (3차).
+
+Persistence lives in `src/services/aiReports.ts` over three tables: `counsel_reports`, `kakao_analyses` (both `0007_ai_reports.sql`), `monthly_reports` (also `0007`, later reshaped by `0010`). 카카오톡 분석 keeps the prd §7 lifecycle: auto-save as 초안 on generation → edit → 확정 (`finalizeAiReport`) → 재생성 resets to 초안 (`regenerateAiReportResult`, with a lose-your-edits confirm). Feature milestones log to the timeline with `ActivityType` `counsel_report` / `kakao_analysis` / `report_generated`.
+
+**상담보고서 and 월간 보고서 are different from 카카오톡 분석** (editReport.md): both are free-form documents sharing one editor, not a fixed AI payload with a draft/final toggle.
+- `counsel_reports` columns: `title`, `method` (`manual`/`ai`), `counsel_date` (moved out of the body into 기본정보 by `0009`); `result` is `{ sections: [{ name, content }] }` (`0008`). `monthly_reports` was reshaped the same way by `0010_monthly_report_document.sql` (added `title`/`method`, converted its old fixed 7-field payload into `sections`); it keeps its own `target_month` column instead of `counsel_date`.
+- `src/features/student-detail/ReportEditorModal.tsx` is the **shared** Canvas-style modal for both report kinds (`kind: 'counsel' | 'monthly'` in `ReportEditorDraft`) — a Notion-style block editor (blocks: heading/text/bullet/check) with a single fixed header (title + copy/PDF/edit/close, or save/cancel/close while editing) and a metadata line (student · school/grade, then 상담 일시-or-대상 기간 | 담당 컨설턴트 | 작성 방식). Blocks serialize to the `sections` schema using line markers — `- ` for bullets, `- [x] `/`- [ ] ` for checklists — and are re-parsed on load; there is no separate block schema in the DB. Enter/Backspace handlers in that file must check `e.nativeEvent.isComposing` before acting — Korean IME can fire a duplicate `keydown(Enter)` when confirming a syllable, which without the guard double-inserts blocks.
+- Saved reports open in 열람(view) mode; 편집 uses a snapshot for 취소; new drafts (manual or AI) open unsaved in edit mode and only hit the DB on 저장. AI generation is *not* auto-saved (deliberate deviation from prd §7, per editReport.md).
+- `counselResultToSections()` / `monthlyResultToSections()` in `aiReports.ts` map the unchanged AI contracts (`CounselReportResult`, `MonthlyReportResult`) into `sections` on first load (상담 일시 → `counsel_date`; AI counsel `summary` is kept as a '1Page Documentation' section even though the manual template dropped it).
+- PDF export (both kinds) is `window.print()` against the `.print-area` inside the modal, with print-only rules at the bottom of `src/index.css` (`@page` A4 size, hides everything else via `body:has(.print-area) *`, avoids breaking mid-heading/mid-checklist-item). The document title is swapped to `{일자}_{학생명}_상담보고서` / `{연월}_{학생명}_월간보고서` just before printing so that's the suggested filename.
+
+카카오톡 분석 dedup is exact-duplicate only: SHA-256 of the source text (`src/lib/hash.ts`) checked via `findKakaoAnalysisByHash` before generating. 월간 보고서 assembles its context client-side from that month's memos/activities/counsel reports (prototype; moves server-side with the Edge Function).
+
+Known prototype limitation: navigating away mid-generation loses the result (insert happens client-side after the AI call resolves).
