@@ -151,6 +151,18 @@ export interface Memo {
   author?: Profile
 }
 
+export interface StudentFile {
+  id: string
+  student_id: string
+  uploader_id: string
+  name: string
+  storage_path: string
+  size: number
+  mime_type: string
+  created_at: string
+  uploader?: Profile
+}
+
 export interface StudentActivity {
   id: string
   student_id: string
