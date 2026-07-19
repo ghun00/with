@@ -2,14 +2,11 @@ import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { getAiService } from '@/services/ai'
 import {
-  counselSectionContent,
-  fetchCounselReports,
   fetchMonthlyReports,
   formatTargetMonth,
   monthlyResultToSections,
+  sectionsToMarkdown,
 } from '@/services/aiReports'
-import { fetchMemos } from '@/services/memos'
-import { fetchStudentActivities } from '@/services/studentActivities'
 import { formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -18,12 +15,7 @@ import { ListItem, SectionHeader } from '@/components/ui/ListItem'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FadeIn } from '@/components/motion'
-import {
-  COUNSEL_REPORT_METHOD_LABEL,
-  STUDENT_ACTIVITY_STATUS_LABEL,
-  type MonthlyReport,
-  type Student,
-} from '@/types'
+import { COUNSEL_REPORT_METHOD_LABEL, type MonthlyReport, type Student } from '@/types'
 import { AiGeneratingIndicator } from './AiGeneratingIndicator'
 import { ReportEditorModal, type ReportEditorDraft } from './ReportEditorModal'
 
@@ -39,57 +31,6 @@ function lastMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-// 프로토타입 수준 컨텍스트 조립: 대상 월의 메모/활동/상담보고서를 텍스트로 합친다.
-// 실제 LLM 전환 시 Edge Function에서 서버측 조립로 이동한다 (source_text 스냅샷 구조는 유지).
-async function buildMonthlyContext(
-  studentId: string,
-  targetMonth: string,
-  note: string,
-): Promise<string> {
-  const [memos, activities, counselReports] = await Promise.all([
-    fetchMemos(studentId),
-    fetchStudentActivities(studentId),
-    fetchCounselReports(studentId),
-  ])
-  const inMonth = (value: string | null) => Boolean(value?.startsWith(targetMonth))
-
-  const lines: string[] = [`대상 월: ${targetMonth}`]
-
-  const monthActivities = activities.filter(
-    (a) => inMonth(a.created_at) || inMonth(a.completed_at) || inMonth(a.due_date),
-  )
-  if (monthActivities.length) {
-    lines.push('\n[활동]')
-    for (const a of monthActivities) {
-      lines.push(`- ${a.name} (${STUDENT_ACTIVITY_STATUS_LABEL[a.status]})`)
-    }
-  }
-
-  const monthMemos = memos.filter((m) => inMonth(m.created_at))
-  if (monthMemos.length) {
-    lines.push('\n[메모]')
-    for (const m of monthMemos) lines.push(`- [${m.tag}] ${m.content}`)
-  }
-
-  const monthReports = counselReports.filter(
-    (r) => inMonth(r.created_at) || inMonth(r.counsel_date),
-  )
-  if (monthReports.length) {
-    lines.push('\n[상담보고서]')
-    for (const r of monthReports) {
-      const summary = counselSectionContent(r, '1Page Documentation')
-      lines.push(`- ${r.title}${summary ? `: ${summary}` : ''}`)
-    }
-  }
-
-  if (note.trim()) {
-    lines.push('\n[참고 사항]')
-    lines.push(note.trim())
-  }
-
-  return lines.join('\n')
-}
-
 function reportToDraft(report: MonthlyReport): ReportEditorDraft {
   return {
     kind: 'monthly',
@@ -98,7 +39,7 @@ function reportToDraft(report: MonthlyReport): ReportEditorDraft {
     method: report.method,
     targetMonth: report.target_month,
     authorName: report.author?.name,
-    sections: report.result.sections,
+    markdown: report.result.markdown ?? sectionsToMarkdown(report.result.sections),
     sourceText: report.source_text,
   }
 }
@@ -116,20 +57,22 @@ export function MonthlyReportTab({ student }: { student: Student }) {
   })
 
   // AI 생성은 저장하지 않고 결과가 입력된 편집 상태의 Report Modal을 연다 — 검토·수정 후 저장 (editReport.md 4차 §8)
+  // 컨텍스트 조립은 Edge Function이 수행하고 source_context로 돌려준다 (source_text 스냅샷 유지)
   const generateMutation = useMutation({
-    mutationFn: async () => {
-      const context = await buildMonthlyContext(student.id, targetMonth, note)
-      const result = await getAiService().generateMonthlyReport(context)
-      return { context, result }
-    },
-    onSuccess: ({ context, result }) => {
+    mutationFn: () =>
+      getAiService().generateMonthlyReport({
+        studentId: student.id,
+        targetMonth,
+        note: note.trim() || undefined,
+      }),
+    onSuccess: (result) => {
       setEditorDraft({
         kind: 'monthly',
         title: `${formatTargetMonth(targetMonth)} 월간보고서`,
         method: 'ai',
         targetMonth,
-        sections: monthlyResultToSections(result),
-        sourceText: context,
+        markdown: sectionsToMarkdown(monthlyResultToSections(result)),
+        sourceText: result.source_context ?? '',
       })
       setCreating(false)
       setNote('')

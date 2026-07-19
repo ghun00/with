@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { getAiService } from '@/services/ai'
-import { counselResultToSections, fetchCounselReports } from '@/services/aiReports'
+import { counselResultToSections, fetchCounselReports, sectionsToMarkdown } from '@/services/aiReports'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -17,7 +17,7 @@ import {
 import { AiSourceInput } from './AiSourceInput'
 import { AiGeneratingIndicator } from './AiGeneratingIndicator'
 import {
-  COUNSEL_TEMPLATE_SECTIONS,
+  COUNSEL_TEMPLATE_MARKDOWN,
   ReportEditorModal,
   type ReportEditorDraft,
 } from './ReportEditorModal'
@@ -35,7 +35,7 @@ function manualDraft(): ReportEditorDraft {
     title: `${formatDate(new Date())} 상담보고서`,
     method: 'manual',
     counselDate: new Date().toISOString().slice(0, 10),
-    sections: COUNSEL_TEMPLATE_SECTIONS,
+    markdown: COUNSEL_TEMPLATE_MARKDOWN,
     sourceText: '',
   }
 }
@@ -48,7 +48,7 @@ function reportToDraft(report: CounselReport): ReportEditorDraft {
     method: report.method,
     counselDate: report.counsel_date,
     authorName: report.author?.name,
-    sections: report.result.sections,
+    markdown: report.result.markdown ?? sectionsToMarkdown(report.result.sections),
     sourceText: report.source_text,
   }
 }
@@ -65,14 +65,15 @@ export function CounselReportTab({ student }: { student: Student }) {
 
   // AI 생성은 저장하지 않고 결과가 입력된 편집 상태의 에디터를 연다 — 검토·수정 후 저장 (editReport.md 3차 §9)
   const generateMutation = useMutation({
-    mutationFn: () => getAiService().generateCounselReport(sourceText.trim()),
+    mutationFn: () =>
+      getAiService().generateCounselReport({ studentId: student.id, rawText: sourceText.trim() }),
     onSuccess: (result) => {
       setEditorDraft({
         kind: 'counsel',
         title: `${result.counsel_date} 상담보고서`,
         method: 'ai',
         counselDate: result.counsel_date || null,
-        sections: counselResultToSections(result),
+        markdown: sectionsToMarkdown(counselResultToSections(result)),
         sourceText: sourceText.trim(),
       })
       setAiInputOpen(false)

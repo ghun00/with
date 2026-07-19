@@ -1,4 +1,4 @@
-import type { KakaoAnalysisResult, MonthlyReportResult } from '@/services/ai'
+import type { KakaoAnalysisResult } from '@/services/ai'
 
 export type MemberRole = 'owner' | 'member'
 export type StudentStatus = 'active' | 'paused' | 'ended'
@@ -243,7 +243,8 @@ export interface CounselReport {
   method: CounselReportMethod
   counsel_date: string | null
   source_text: string
-  result: { sections: CounselReportSection[] }
+  // markdown = 편집기 source of truth(무손실), sections = 하위호환 인덱스. 기존 저장본은 sections만 존재.
+  result: { markdown?: string; sections: CounselReportSection[] }
   status: AiReportStatus
   created_by: string
   created_at: string
@@ -273,7 +274,7 @@ export interface MonthlyReport {
   method: CounselReportMethod
   target_month: string // YYYY-MM
   source_text: string
-  result: { sections: CounselReportSection[] }
+  result: { markdown?: string; sections: CounselReportSection[] }
   status: AiReportStatus
   created_by: string
   created_at: string
@@ -282,8 +283,18 @@ export interface MonthlyReport {
   author?: Profile
 }
 
+// 월간 보고서 본문 7개 목차의 키 — warnings/source_context 등 부가 필드는 제외
+export type MonthlyReportSectionKey =
+  | 'activity_summary'
+  | 'achievements'
+  | 'communication'
+  | 'todo_progress'
+  | 'improvements'
+  | 'next_month_plan'
+  | 'consultant_opinion'
+
 // 월간 보고서 목차 순서·라벨 (렌더링/복사/인쇄에서 공용, prd §6.12)
-export const MONTHLY_REPORT_SECTIONS: { key: keyof MonthlyReportResult; label: string }[] = [
+export const MONTHLY_REPORT_SECTIONS: { key: MonthlyReportSectionKey; label: string }[] = [
   { key: 'activity_summary', label: '이번 달 활동 요약' },
   { key: 'achievements', label: '주요 성과' },
   { key: 'communication', label: '상담 및 소통 내용' },

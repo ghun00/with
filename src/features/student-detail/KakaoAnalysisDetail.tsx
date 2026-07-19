@@ -16,7 +16,7 @@ import { AiGeneratingIndicator } from './AiGeneratingIndicator'
 import { TodoRegisterModal } from './TodoRegisterModal'
 
 // 카카오톡 분석 목록형 항목 (prd §6.8) — 날짜별 주요 대화는 별도 렌더링
-const LIST_SECTIONS: { key: keyof Omit<KakaoAnalysisResult, 'daily_highlights'>; label: string; reference?: boolean }[] = [
+const LIST_SECTIONS: { key: keyof Omit<KakaoAnalysisResult, 'daily_highlights' | 'warnings'>; label: string; reference?: boolean }[] = [
   { key: 'requests', label: '요청 사항' },
   { key: 'decisions', label: '결정 사항' },
   { key: 'student_todos', label: '학생 To Do' },
@@ -110,7 +110,7 @@ export function KakaoAnalysisDetail({
 
   const regenerateMutation = useMutation({
     mutationFn: async () => {
-      const result = await getAiService().analyzeKakaoChat(analysis.source_text)
+      const result = await getAiService().analyzeKakaoChat({ studentId, rawText: analysis.source_text })
       await regenerateAiReportResult('kakao_analyses', analysis.id, studentId, { ...result })
     },
     onSuccess: invalidate,

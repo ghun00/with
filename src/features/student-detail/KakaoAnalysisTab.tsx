@@ -41,7 +41,7 @@ export function KakaoAnalysisTab({ studentId }: { studentId: string }) {
   const generateMutation = useMutation({
     mutationFn: async ({ hash }: { hash: string }) => {
       const text = sourceText.trim()
-      const result = await getAiService().analyzeKakaoChat(text)
+      const result = await getAiService().analyzeKakaoChat({ studentId, rawText: text })
       return createKakaoAnalysis({ studentId, sourceText: text, sourceHash: hash, result })
     },
     onSuccess: (newId) => {

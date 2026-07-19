@@ -4,9 +4,11 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+const MOCK_WARNINGS = ['(목업) 검증 경고 예시입니다. 실제 연동 시 검증 패스 결과로 대체됩니다.']
+
 // 실제 LLM 연동 전까지 화면·저장 흐름 검증용 목업 응답
 export const mockAiService: AiService = {
-  async generateCounselReport(rawText: string) {
+  async generateCounselReport({ rawText }) {
     await delay(1200)
     return {
       counsel_date: new Date().toISOString().slice(0, 10),
@@ -18,10 +20,11 @@ export const mockAiService: AiService = {
       consultant_todos: ['(목업) 학교 활동 자료 검토'],
       next_plan: '확인 필요',
       summary: '(목업) 상담 요약이 여기에 생성됩니다. AI 연동 후 실제 내용으로 대체됩니다.',
+      warnings: MOCK_WARNINGS,
     }
   },
 
-  async analyzeKakaoChat(rawText: string) {
+  async analyzeKakaoChat({ rawText }) {
     await delay(1200)
     return {
       daily_highlights: [
@@ -33,6 +36,7 @@ export const mockAiService: AiService = {
       consultant_todos: ['(목업) 학부모 상담 일정 조율'],
       issues: ['확인 필요'],
       risk_signals: [],
+      warnings: MOCK_WARNINGS,
     }
   },
 
@@ -41,16 +45,18 @@ export const mockAiService: AiService = {
     return '(목업) 주간 요약이 여기에 생성됩니다.'
   },
 
-  async generateMonthlyReport(context: string) {
+  async generateMonthlyReport({ targetMonth, note }) {
     await delay(1200)
     return {
-      activity_summary: context.slice(0, 200) || '확인 필요',
+      activity_summary: `(목업) ${targetMonth} 활동 요약이 여기에 생성됩니다.`,
       achievements: '(목업) 주요 성과가 여기에 생성됩니다.',
       communication: '(목업) 상담 및 소통 내용이 여기에 생성됩니다.',
       todo_progress: '확인 필요',
       improvements: '확인 필요',
       next_month_plan: '(목업) 다음 달 계획이 여기에 생성됩니다.',
       consultant_opinion: '(목업) 컨설턴트 의견이 여기에 생성됩니다. AI 연동 후 실제 내용으로 대체됩니다.',
+      warnings: MOCK_WARNINGS,
+      source_context: `대상 월: ${targetMonth}${note ? `\n\n[참고 사항]\n${note}` : ''}`,
     }
   },
 }
