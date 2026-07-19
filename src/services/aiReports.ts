@@ -71,6 +71,46 @@ export function counselSectionContent(report: CounselReport, name: string): stri
   return report.result.sections.find((s) => s.name === name)?.content.trim() ?? ''
 }
 
+// 섹션 배열 → Markdown 문서. 소제목은 `### `로, content의 `- `/`- [ ] ` 마커는 유효 Markdown 그대로 유지.
+// AI 결과·기본 템플릿·기존 저장본을 편집기 진입 시 Markdown으로 변환할 때 사용한다.
+export function sectionsToMarkdown(sections: CounselReportSection[]): string {
+  return sections
+    .map((s) => {
+      const parts: string[] = []
+      if (s.name) parts.push(`### ${s.name}`)
+      const body = s.content.replace(/\n+$/, '')
+      if (body) parts.push(body)
+      return parts.join('\n\n')
+    })
+    .filter((block) => block.length > 0)
+    .join('\n\n')
+}
+
+// Markdown 문서 → 섹션 배열(하위호환 인덱스). 소제목(#~######) 기준으로 분해한다.
+// counselSectionContent()/월간 컨텍스트 조립이 이 인덱스를 읽으므로 저장 시 함께 기록한다.
+export function markdownToSections(markdown: string): CounselReportSection[] {
+  const sections: CounselReportSection[] = []
+  let current: { name: string; lines: string[] } | null = null
+  const flush = () => {
+    if (!current) return
+    const content = current.lines.join('\n').replace(/^\n+|\n+$/g, '')
+    if (current.name || content.trim()) sections.push({ name: current.name, content })
+    current = null
+  }
+  for (const line of markdown.split('\n')) {
+    const heading = line.match(/^#{1,6}\s+(.*)$/)
+    if (heading) {
+      flush()
+      current = { name: heading[1].trim(), lines: [] }
+    } else {
+      if (!current) current = { name: '', lines: [] }
+      current.lines.push(line)
+    }
+  }
+  flush()
+  return sections
+}
+
 export async function fetchKakaoAnalyses(studentId: string): Promise<KakaoAnalysis[]> {
   const supabase = getSupabase()
   const { data, error } = await supabase
@@ -111,7 +151,7 @@ export async function createCounselReport(params: {
   title: string
   method: CounselReportMethod
   counselDate: string | null
-  sections: CounselReportSection[]
+  markdown: string
   sourceText: string
 }): Promise<string> {
   const supabase = getSupabase()
@@ -124,7 +164,7 @@ export async function createCounselReport(params: {
       method: params.method,
       counsel_date: params.counselDate,
       source_text: params.sourceText,
-      result: { sections: params.sections },
+      result: { markdown: params.markdown, sections: markdownToSections(params.markdown) },
       created_by: userId,
     })
     .select('id')
@@ -143,7 +183,7 @@ export async function updateCounselReport(params: {
   id: string
   title: string
   counselDate: string | null
-  sections: CounselReportSection[]
+  markdown: string
 }): Promise<void> {
   const supabase = getSupabase()
   const { error } = await supabase
@@ -151,7 +191,7 @@ export async function updateCounselReport(params: {
     .update({
       title: params.title,
       counsel_date: params.counselDate,
-      result: { sections: params.sections },
+      result: { markdown: params.markdown, sections: markdownToSections(params.markdown) },
       updated_at: new Date().toISOString(),
     })
     .eq('id', params.id)
@@ -192,7 +232,7 @@ export async function createMonthlyReport(params: {
   method: CounselReportMethod
   targetMonth: string
   sourceText: string
-  sections: CounselReportSection[]
+  markdown: string
 }): Promise<string> {
   const supabase = getSupabase()
   const userId = await requireUserId()
@@ -204,7 +244,7 @@ export async function createMonthlyReport(params: {
       method: params.method,
       target_month: params.targetMonth,
       source_text: params.sourceText,
-      result: { sections: params.sections },
+      result: { markdown: params.markdown, sections: markdownToSections(params.markdown) },
       created_by: userId,
     })
     .select('id')
@@ -221,14 +261,14 @@ export async function createMonthlyReport(params: {
 export async function updateMonthlyReport(params: {
   id: string
   title: string
-  sections: CounselReportSection[]
+  markdown: string
 }): Promise<void> {
   const supabase = getSupabase()
   const { error } = await supabase
     .from('monthly_reports')
     .update({
       title: params.title,
-      result: { sections: params.sections },
+      result: { markdown: params.markdown, sections: markdownToSections(params.markdown) },
       updated_at: new Date().toISOString(),
     })
     .eq('id', params.id)

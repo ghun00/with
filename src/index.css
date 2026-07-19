@@ -126,12 +126,127 @@ body {
     width: 100%;
   }
   /* 소제목이 다음 본문과 다른 페이지로 분리되지 않도록 하고, 목록 항목은 중간에서 자르지 않는다 */
-  .print-area h3 {
+  .print-area :is(h1, h2, h3) {
     break-after: avoid;
   }
-  .print-area .doc-item {
+  .print-area li {
     break-inside: avoid;
   }
+  /* 체크리스트 완료·미완료 색상이 인쇄에도 유지되도록 한다 */
+  .print-area input[type='checkbox'] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* 노션형 Markdown WYSIWYG 본문 스타일 — Tiptap이 출력하는 시맨틱 HTML을 문서 서식으로 렌더한다.
+   유틸리티로 내부 노드를 스타일할 수 없어 스코프 클래스로 지정한다(에디터 스타일 예외 영역). */
+.report-doc .tiptap {
+  outline: none;
+  color: var(--color-fg);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.report-doc .tiptap > * + * {
+  margin-top: 0.5rem;
+}
+.report-doc .tiptap h1 {
+  font-size: 24px;
+  line-height: 1.3;
+  font-weight: 700;
+  margin-top: 1.75rem;
+}
+.report-doc .tiptap h2 {
+  font-size: 21px;
+  line-height: 1.35;
+  font-weight: 600;
+  margin-top: 1.75rem;
+}
+.report-doc .tiptap h3 {
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+.report-doc .tiptap :is(h1, h2, h3):first-child {
+  margin-top: 0;
+}
+.report-doc .tiptap p {
+  font-size: 15px;
+  line-height: 1.7;
+}
+.report-doc .tiptap ul,
+.report-doc .tiptap ol {
+  padding-left: 1.4rem;
+}
+.report-doc .tiptap ul {
+  list-style: disc;
+}
+.report-doc .tiptap ol {
+  list-style: decimal;
+}
+.report-doc .tiptap li {
+  margin-top: 0.15rem;
+}
+.report-doc .tiptap li p {
+  margin: 0;
+}
+.report-doc .tiptap strong {
+  font-weight: 700;
+}
+.report-doc .tiptap em {
+  font-style: italic;
+}
+.report-doc .tiptap blockquote {
+  border-left: 3px solid var(--color-line-strong);
+  padding-left: 0.875rem;
+  color: var(--color-fg-secondary);
+}
+.report-doc .tiptap hr {
+  border: none;
+  border-top: 1px solid var(--color-line);
+  margin: 1.25rem 0;
+}
+.report-doc .tiptap a {
+  color: var(--color-accent-500);
+  text-decoration: underline;
+}
+/* 체크리스트(Task list) — 글머리 대신 체크박스 + 완료 시 취소선 */
+.report-doc .tiptap ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0;
+}
+.report-doc .tiptap ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+}
+.report-doc .tiptap ul[data-type='taskList'] li > label {
+  margin-top: 0.28rem;
+  flex-shrink: 0;
+}
+.report-doc .tiptap ul[data-type='taskList'] li > div {
+  flex: 1;
+  min-width: 0;
+}
+.report-doc .tiptap ul[data-type='taskList'] input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-accent-500);
+}
+.report-doc .tiptap ul[data-type='taskList'] li[data-checked='true'] {
+  color: var(--color-fg-tertiary);
+  text-decoration: line-through;
+}
+/* 빈 문단·소제목 안내 문구 (Placeholder) — 저장 데이터에는 포함되지 않는다 */
+.report-doc .tiptap .is-empty::before,
+.report-doc .tiptap .is-editor-empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-fg-disabled);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
