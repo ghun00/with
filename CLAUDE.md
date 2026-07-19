@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 WITH — a SaaS for 학종(school record-based admissions) consultants to manage students. UI text, DB content, and comments are in Korean; keep new user-facing strings and code comments in Korean to match. Full requirements: `prd.md` — but two later specs supersede parts of it:
 
 - `changeToActivityManage.md` supersedes prd.md §6.6 (To Do 관리) — the To Do feature was replaced by 활동 관리.
-- `editReport.md` supersedes prd.md §6.7 (상담보고서) and §6.12 (월간 보고서) — four revisions in one file; the final state is the **4차 수정안** ("상담·월간 보고서 UI 수정안"): a single-document block editor shared by both report types inside one Canvas-style modal (`ReportEditorModal.tsx`), direct authoring primary / AI assist secondary, 열람↔편집 states, PDF export. The 초안/확정(draft/final) flow from prd §7 was dropped for both report types' UI (DB columns remain) but still applies to 카카오톡 분석.
+- `editReport.md` supersedes prd.md §6.7 (상담보고서) and §6.12 (월간 보고서). The current spec ("보고서 모달 UI 및 Markdown 에디터 수정안") is a **Notion-style Markdown WYSIWYG editor** (Tiptap/ProseMirror) shared by both report types inside one Canvas-style modal (`ReportEditorModal.tsx`): title lives in the document body as H1 (top bar holds only 복사/PDF/편집/닫기, or 저장/취소/닫기 while editing), the body is one Markdown document with live-formatting shortcuts (`#`/`##`/`###`, `-`/`1.`/`[]`, `>`, `---`, `**bold**`, `*italic*`), direct authoring primary / AI assist secondary, 열람↔편집 states, PDF export. The 초안/확정(draft/final) flow from prd §7 was dropped for both report types' UI (DB columns remain) but still applies to 카카오톡 분석.
 
 Design system: `docs/superpowers/specs/2026-07-18-design-system.md`. README's roadmap says 월간 보고서 is 3차, but it was pulled forward and built in 2차.
 
@@ -47,7 +47,7 @@ Migrations are plain numbered SQL files in `supabase/migrations/`, applied by ha
 
 ## AI features (2차 — UI real, LLM mocked)
 
-`src/services/ai/index.ts` defines the `AiService` contract; `getAiService()` returns a mock today and will swap to a Supabase Edge Function + Claude API — **change `getAiService()` only, never the call sites**. For report persistence (`aiReports.ts`), the shared `ReportEditorModal` block editor, PDF export, and 카카오톡 분석 dedup/lifecycle specifics, see the `ai-reports` skill.
+`src/services/ai/index.ts` defines the `AiService` contract; `getAiService()` returns a mock today and will swap to a Supabase Edge Function + Claude API — **change `getAiService()` only, never the call sites**. For report persistence (`aiReports.ts`), the shared `ReportEditorModal` Markdown editor, PDF export, and 카카오톡 분석 dedup/lifecycle specifics, see the `ai-reports` skill.
 
 ## Animation
 
@@ -59,7 +59,7 @@ Reusable primitives are in `src/components/motion/index.tsx` (`FadeIn`, `Stagger
 
 Tokens live in `src/index.css` under `@theme` (Tailwind v4 CSS-first config). Full rules (accent usage, CTA placement, badge tone conventions) and component inventory: `docs/superpowers/specs/2026-07-18-design-system.md`.
 
-Exception: `CounselReportEditorModal` intentionally uses borderless inputs and arbitrary px type sizes (26/19/15px per editReport.md 3차) instead of Field components — that's spec'd editor styling, not a pattern to copy elsewhere.
+Exception: `ReportEditorModal` (the shared 상담·월간 보고서 editor) intentionally uses a borderless title input and arbitrary px type sizes instead of Field components — that's spec'd editor styling, not a pattern to copy elsewhere. Its Markdown document body is rendered by Tiptap and styled via the `.report-doc .tiptap …` block at the bottom of `src/index.css` (utilities can't reach Tiptap's internal nodes) — the print rules there (`@media print`, `.print-area`) also live-depend on that markup, so keep them in sync when changing editor output.
 
 ## Path alias
 
