@@ -49,3 +49,18 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
+
+// date(YYYY-MM-DD) + time(HH:MM) 로컬 입력을 ISO 문자열로 합친다. time이 비면 자정 기준.
+export function localInputsToISO(date: string, time: string): string {
+  return new Date(`${date}T${time || '00:00'}`).toISOString()
+}
+
+// ISO 문자열을 date input / time input용 로컬 값으로 분리 (편집 시 폼 초기값)
+export function isoToLocalInputs(iso: string): { date: string; time: string } {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  }
+}
