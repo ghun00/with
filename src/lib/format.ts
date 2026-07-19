@@ -43,3 +43,9 @@ export function formatRelative(value: string | Date | null | undefined): string 
   if (days < 7) return `${days}일 전`
   return formatDate(d)
 }
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
