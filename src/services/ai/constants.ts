@@ -1,0 +1,4 @@
+// AI 원문 입력 상한(글자 수). 생성+검증 2패스가 Edge Function 150초 wall-clock 한도 안에
+// 들도록 하는 가드 — 넘으면 생성 버튼을 막고 안내한다. 서버에도 동일 값(MAX_RAW_TEXT_LENGTH).
+// index.ts↔real.ts 순환 참조를 피하려고 의존성 없는 별도 모듈에 둔다.
+export const MAX_AI_SOURCE_LENGTH = 12000

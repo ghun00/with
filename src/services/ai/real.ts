@@ -8,7 +8,7 @@ import type {
   KakaoAnalysisResult,
   MonthlyReportResult,
 } from './index'
-import { MAX_AI_SOURCE_LENGTH } from './index'
+import { MAX_AI_SOURCE_LENGTH } from './constants'
 
 const ERROR_MESSAGES: Record<string, string> = {
   unauthorized: '로그인이 만료되었습니다. 다시 로그인해 주세요.',
