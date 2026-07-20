@@ -9,7 +9,7 @@ WITH — a SaaS for 학종(school record-based admissions) consultants to manage
 - `changeToActivityManage.md` supersedes prd.md §6.6 (To Do 관리) — the To Do feature was replaced by 활동 관리.
 - `editReport.md` supersedes prd.md §6.7 (상담보고서) and §6.12 (월간 보고서). The current spec ("보고서 모달 UI 및 Markdown 에디터 수정안") is a **Notion-style Markdown WYSIWYG editor** (Tiptap/ProseMirror) shared by both report types inside one Canvas-style modal (`ReportEditorModal.tsx`): title lives in the document body as H1 (top bar holds only 복사/PDF/편집/닫기, or 저장/취소/닫기 while editing), the body is one Markdown document with live-formatting shortcuts (`#`/`##`/`###`, `-`/`1.`/`[]`, `>`, `---`, `**bold**`, `*italic*`), direct authoring primary / AI assist secondary, 열람↔편집 states, PDF export. The 초안/확정(draft/final) flow from prd §7 was dropped for both report types' UI (DB columns remain) but still applies to 카카오톡 분석.
 
-Design system: `docs/superpowers/specs/2026-07-18-design-system.md`. README's roadmap says 월간 보고서 is 3차, but it was pulled forward and built in 2차.
+Design system: `docs/superpowers/specs/2026-07-18-design-system.md`. README's roadmap says 월간 보고서 is 3차, but it was pulled forward and built in 2차. Of README's remaining 3차 items, 파일 관리(`0011`)와 일정 관리(`0012`)는 이미 구현 완료 — 주간 요약만 남아 있다.
 
 ## Commands
 
@@ -41,9 +41,17 @@ Migrations are plain numbered SQL files in `supabase/migrations/`, applied by ha
 - Child tables (`student_activity_subtasks`, `student_activity_history`) denormalize `student_id` so RLS can call `can_access_student(student_id)` without cross-table subqueries; a `BEFORE INSERT` trigger (`sync_activity_child_student_id`) fills it from the parent row — clients never send it. Reuse this pattern for future child tables of RLS-protected parents.
 - 카카오톡 분석's extracted to-dos (`student_todos`/`consultant_todos` on `KakaoAnalysisResult`) get reviewed and selectively registered as 활동 관리 items via `TodoRegisterModal.tsx` (`KakaoAnalysisDetail.tsx`) — the component name predates the prd §6.6 → 활동관리 rename and was kept as-is; it calls `createStudentActivity()`, not a `todos` table.
 
+## Invitations & onboarding
+
+Group invites (`invitations` table, `0001_init.sql`) are consumed via `/invite/:token` (`InvitePage.tsx`), which accepts immediately if a session exists, or bounces to `/login?redirect=/invite/:token` — Kakao OAuth's `redirectTo` is expected to carry that path back after login so `InvitePage` runs again with a fresh session. That OAuth round-trip only works if the exact path is allow-listed in Supabase's Redirect URLs config, which isn't guaranteed, so `InvitePage` also writes the token to `localStorage` (`with.pendingInviteToken`) as a fallback before bouncing to `/login`; `OnboardingPage.tsx` checks that key on mount and auto-joins the group before ever rendering its "create a group" form, so a broken redirect doesn't strand a new user thinking they need to create their own group. Both pages share the accept-and-route logic via `useAcceptInvite()` (`src/features/invite/useAcceptInvite.ts`), which also absorbs the harmless multi-tab race where the same token gets accepted twice (re-checks membership instead of surfacing a false "invalid invitation" error).
+
 ## Files (3차 — 학생별 파일 관리, `0011_student_files.sql`)
 
 `src/services/files.ts` + `src/features/student-detail/FilesTab.tsx` (파일 탭). Unlike other features, this one is backed by a private Supabase **Storage bucket** (`student-files`, 20MB limit) in addition to a metadata table — `student_files` holds `name`/`storage_path`/`size`/`mime_type` only; the object itself lives at `{student_id}/{uuid}` in the bucket, never the original filename (avoids Korean/special-char path issues). Access is via short-lived signed URLs (`getStudentFileUrl`, 60s TTL, `download` option for the 다운로드 vs 열람 distinction). The bucket has no `allowed_mime_types` restriction — hwp/hwpx don't get a consistent browser-reported MIME type — so the extension whitelist (`ALLOWED_FILE_EXTENSIONS`) is enforced client-side instead. RLS is duplicated on both `student_files` (table, `can_access_student`) and `storage.objects` (bucket, same helper applied to `(storage.foldername(name))[1]` as the student id) since Storage API calls bypass table policies entirely. Delete is owner-or-uploader on both; the table row is the source of truth for the visible list, so `deleteStudentFile()` deletes the row first and only logs (doesn't throw on) a failed storage-object cleanup.
+
+## Schedules (3차 — 학생별 일정 관리, `0012_student_schedules.sql`)
+
+`src/services/schedules.ts` + `ScheduleTab.tsx`/`ScheduleFormModal.tsx` (일정 tab). Every row belongs to exactly one student (`student_id not null`) — there's no personal/unscoped calendar, matching the product's student-centric scope. `start_at` is required; `end_at` is optional (absent means a single point-in-time event, not a range). RLS follows the same direct-`student_id` pattern as `counsel_reports`/`monthly_reports` (`can_access_student(student_id)` on all four policies, no cross-table subquery). Creating a schedule also calls `logActivity()` to append to the global timeline — same fire-and-forget pattern as the other timeline-producing actions above.
 
 ## AI features (4차 — 실제 LLM 연동)
 
