@@ -3,6 +3,9 @@ import Anthropic from 'npm:@anthropic-ai/sdk'
 import { AiError } from './http.ts'
 
 export const MODEL = 'claude-sonnet-5'
+// 검증 패스 전용 모델. 검증은 명시된 규칙으로 생성 결과를 대조하는 좁은 작업이라
+// 빠른 Haiku로 충분하고, 이렇게 해야 생성+검증이 Edge Function 150초 wall-clock 한도 안에 든다.
+export const VERIFY_MODEL = 'claude-haiku-4-5'
 
 // 생성 패스 공통 지침 (스펙 §생성 패스). 검증 패스 지침은 verify.ts에 별도.
 export const COMMON_RULES = `- 원문에 근거 없는 내용은 추측하지 말고 "확인 필요"로 기록한다.
@@ -27,10 +30,11 @@ export async function callClaudeJson<T>(params: {
   system: string
   userText: string
   schema: Record<string, unknown>
+  model?: string
 }): Promise<T> {
   try {
     const response = await getClient().messages.create({
-      model: MODEL,
+      model: params.model ?? MODEL,
       max_tokens: 16000,
       system: params.system,
       messages: [{ role: 'user', content: params.userText }],

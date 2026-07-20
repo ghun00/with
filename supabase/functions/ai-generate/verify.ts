@@ -1,6 +1,6 @@
 // 검증 패스 — 생성 결과를 원문과 대조하는 별도 호출 (스펙 §[3])
 // "요약하고 검증도 해줘"를 한 호출에 합치지 않는다.
-import { callClaudeJson } from './claude.ts'
+import { VERIFY_MODEL, callClaudeJson } from './claude.ts'
 
 const VERIFY_RULES = `너는 AI가 생성한 결과물을 원문과 대조해 검증하는 검수자다. 새로운 내용을 창작하지 말고 아래 항목만 검사해, 수정된 결과와 경고 목록을 출력한다.
 1. 원문에 근거 없는 내용 → "확인 필요"로 바꾸고 경고에 기록
@@ -41,6 +41,7 @@ export async function verifyResult<T>(params: {
   schema: ObjectSchema
 }): Promise<T & { warnings: string[] }> {
   return callClaudeJson<T & { warnings: string[] }>({
+    model: VERIFY_MODEL,
     system: `${VERIFY_RULES}\n\n${params.studentContext}`,
     userText: `[원문]\n${params.sourceText}\n\n[검증 대상: ${params.taskLabel} 생성 결과 JSON]\n${JSON.stringify(params.generated, null, 2)}`,
     schema: withWarnings(params.schema),
