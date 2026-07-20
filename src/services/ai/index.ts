@@ -1,6 +1,7 @@
 // AI 서비스 인터페이스 — 실제 구현은 Supabase Edge Function(ai-generate) 호출로 동작한다.
 // VITE_USE_MOCK_AI=true일 때만 mock을 사용한다 (함수 미배포 환경의 UI 개발용).
 import { mockAiService } from './mock'
+import { realAiService } from './real'
 
 export interface CounselReportResult {
   counsel_date: string
@@ -62,6 +63,9 @@ export interface AiService {
   generateMonthlyReport(input: MonthlyReportInput): Promise<MonthlyReportResult>
 }
 
+// VITE_USE_MOCK_AI=true → mock (Edge Function 미배포 환경의 UI 개발용)
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_AI === 'true'
+
 export function getAiService(): AiService {
-  return mockAiService
+  return USE_MOCK ? mockAiService : realAiService
 }
