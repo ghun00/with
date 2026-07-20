@@ -3,6 +3,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { AiError, corsHeaders, errorResponse, jsonResponse } from './http.ts'
 import { runCounselReport } from './tasks/counselReport.ts'
+import { runKakaoAnalysis } from './tasks/kakaoAnalysis.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -25,6 +26,7 @@ Deno.serve(async (req) => {
       case 'counsel_report':
         return jsonResponse(await runCounselReport(supabase, body))
       case 'kakao_analysis':
+        return jsonResponse(await runKakaoAnalysis(supabase, body))
       case 'monthly_report':
         throw new AiError('invalid_request', '아직 구현되지 않은 task입니다.')
       default:
