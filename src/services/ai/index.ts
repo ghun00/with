@@ -11,7 +11,7 @@ export interface CounselReportResult {
   purpose: string
   discussion: string
   student_status: string
-  decisions: string[]
+  decisions: string // Markdown (글머리 기호 목록 + 필요 시 "### " 소제목)
   student_todos: string[]
   consultant_todos: string[]
   next_plan: string

@@ -15,7 +15,7 @@ export const mockAiService: AiService = {
       purpose: '확인 필요',
       discussion: rawText.slice(0, 200) || '확인 필요',
       student_status: '확인 필요',
-      decisions: ['확인 필요'],
+      decisions: '- 확인 필요',
       student_todos: ['(목업) 자기소개서 초안 작성'],
       consultant_todos: ['(목업) 학교 활동 자료 검토'],
       next_plan: '확인 필요',

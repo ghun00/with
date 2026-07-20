@@ -55,13 +55,14 @@ function warningsSection(warnings?: string[]): CounselReportSection[] {
 
 // AI 결과(고정 필드)를 편집 문서의 섹션 배열로 변환한다 — AI 계약은 그대로 두고 UI 진입 시점에 변환.
 // 상담 일시는 보고서 기본정보(counsel_date)로 이동했으므로 섹션에서 제외한다.
-// 목록형 항목은 섹션 기본 형식(글머리 기호/체크리스트) 마커로 직렬화한다 (editReport.md 3차 §4).
+// discussion/student_status/decisions/next_plan/summary는 AI가 이미 Markdown(필요 시 `### ` 소제목 포함)으로
+// 채워 반환하므로 그대로 사용한다. student_todos/consultant_todos만 체크리스트 마커로 직렬화한다 (editAIReport.md).
 export function counselResultToSections(result: CounselReportResult): CounselReportSection[] {
   return [
     { name: '상담 목적', content: result.purpose },
     { name: '주요 논의', content: result.discussion },
     { name: '학생 현황', content: result.student_status },
-    { name: '결정 사항', content: result.decisions.map((d) => `- ${d}`).join('\n') },
+    { name: '결정 사항', content: result.decisions },
     { name: '학생 To Do', content: result.student_todos.map((t) => `- [ ] ${t}`).join('\n') },
     {
       name: '컨설턴트 To Do',
@@ -78,13 +79,13 @@ export function counselSectionContent(report: CounselReport, name: string): stri
   return report.result.sections.find((s) => s.name === name)?.content.trim() ?? ''
 }
 
-// 섹션 배열 → Markdown 문서. 소제목은 `### `로, content의 `- `/`- [ ] ` 마커는 유효 Markdown 그대로 유지.
-// AI 결과·기본 템플릿·기존 저장본을 편집기 진입 시 Markdown으로 변환할 때 사용한다.
+// 섹션 배열 → Markdown 문서. 최상위 섹션 소제목은 `## `로, content의 `### ` 동적 소제목·`- `/`- [ ] ` 마커는
+// 유효 Markdown 그대로 유지한다. AI 결과·기본 템플릿·기존 저장본을 편집기 진입 시 Markdown으로 변환할 때 사용한다.
 export function sectionsToMarkdown(sections: CounselReportSection[]): string {
   return sections
     .map((s) => {
       const parts: string[] = []
-      if (s.name) parts.push(`### ${s.name}`)
+      if (s.name) parts.push(`## ${s.name}`)
       const body = s.content.replace(/\n+$/, '')
       if (body) parts.push(body)
       return parts.join('\n\n')
@@ -93,9 +94,14 @@ export function sectionsToMarkdown(sections: CounselReportSection[]): string {
     .join('\n\n')
 }
 
-// Markdown 문서 → 섹션 배열(하위호환 인덱스). 소제목(#~######) 기준으로 분해한다.
-// counselSectionContent()/월간 컨텍스트 조립이 이 인덱스를 읽으므로 저장 시 함께 기록한다.
+// Markdown 문서 → 섹션 배열(하위호환 인덱스). 문서에서 처음 등장하는 헤딩 레벨을 그 문서의 섹션 경계로 삼는다
+// (신규 문서는 `## `, 구버전 문서는 `### `가 최상위이므로 마이그레이션 없이 둘 다 지원). 그보다 깊은 헤딩
+// (예: 필드 내부의 동적 `### ` 소제목)은 경계로 취급하지 않고 부모 섹션의 content에 그대로 포함시킨다.
+// 월간 컨텍스트 조립(ai-generate/tasks/monthlyReport.ts)이 이 인덱스를 읽으므로 저장 시 함께 기록한다.
 export function markdownToSections(markdown: string): CounselReportSection[] {
+  const firstHeading = markdown.match(/^(#{1,6})\s+/m)
+  const boundaryLevel = firstHeading ? firstHeading[1].length : 2
+  const boundaryRe = new RegExp(`^#{${boundaryLevel}}\\s+(.*)$`)
   const sections: CounselReportSection[] = []
   let current: { name: string; lines: string[] } | null = null
   const flush = () => {
@@ -105,7 +111,7 @@ export function markdownToSections(markdown: string): CounselReportSection[] {
     current = null
   }
   for (const line of markdown.split('\n')) {
-    const heading = line.match(/^#{1,6}\s+(.*)$/)
+    const heading = line.match(boundaryRe)
     if (heading) {
       flush()
       current = { name: heading[1].trim(), lines: [] }
