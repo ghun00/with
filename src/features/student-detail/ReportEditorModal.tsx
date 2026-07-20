@@ -117,19 +117,19 @@ export function ReportEditorModal({
     if (!draft || !editor) return
     setTitle(draft.title)
     setCounselDate(draft.counselDate ?? '')
-    // 프로그래매틱 setContent는 emitUpdate=false → dirty로 잡히지 않는다
-    editor.commands.setContent(draft.markdown)
+    // setContent/setEditable 모두 emitUpdate 기본값이 true(Tiptap 3)라 명시적으로 꺼야 onUpdate가 dirty를 잘못 세우지 않는다
+    editor.commands.setContent(draft.markdown, { emitUpdate: false })
     // 신규 초안(직접 작성/AI 생성)은 저장 전이므로 편집 상태로 연다 (닫기 확인은 실제 변경 시에만 표시)
     const startEdit = !draft.reportId
     setMode(startEdit ? 'edit' : 'view')
-    editor.setEditable(startEdit)
+    editor.setEditable(startEdit, false)
     setSavedId(null)
     setDirty(false)
     setCopied(false)
   }, [draft, editor])
 
   useEffect(() => {
-    editor?.setEditable(mode === 'edit')
+    editor?.setEditable(mode === 'edit', false)
   }, [editor, mode])
 
   useEffect(() => () => window.clearTimeout(copiedTimer.current), [])
@@ -194,7 +194,7 @@ export function ReportEditorModal({
     if (snapshotRef.current) {
       setTitle(snapshotRef.current.title)
       setCounselDate(snapshotRef.current.counselDate)
-      editor?.commands.setContent(snapshotRef.current.markdown)
+      editor?.commands.setContent(snapshotRef.current.markdown, { emitUpdate: false })
     }
     setDirty(false)
     setMode('view')
