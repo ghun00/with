@@ -1,9 +1,8 @@
 // ai-generate: AI 생성 단일 진입점 — task 라우팅
 // 스펙: docs/superpowers/specs/2026-07-20-ai-integration-design.md
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { AiError, corsHeaders, errorResponse } from './http.ts'
-
-const KNOWN_TASKS = ['counsel_report', 'kakao_analysis', 'monthly_report']
+import { AiError, corsHeaders, errorResponse, jsonResponse } from './http.ts'
+import { runCounselReport } from './tasks/counselReport.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -22,11 +21,15 @@ Deno.serve(async (req) => {
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
     if (!body) throw new AiError('invalid_request', '요청 본문이 올바르지 않습니다.')
 
-    if (!KNOWN_TASKS.includes(String(body.task)))
-      throw new AiError('invalid_request', `알 수 없는 task입니다: ${String(body.task)}`)
-
-    // Task 4~6에서 각 task 실행으로 교체된다
-    throw new AiError('invalid_request', '아직 구현되지 않은 task입니다.')
+    switch (body.task) {
+      case 'counsel_report':
+        return jsonResponse(await runCounselReport(supabase, body))
+      case 'kakao_analysis':
+      case 'monthly_report':
+        throw new AiError('invalid_request', '아직 구현되지 않은 task입니다.')
+      default:
+        throw new AiError('invalid_request', `알 수 없는 task입니다: ${String(body.task)}`)
+    }
   } catch (e) {
     if (e instanceof AiError) return errorResponse(e)
     console.error('[ai-generate] unexpected error', e)
