@@ -119,12 +119,12 @@ export function ReportEditorModal({
     setCounselDate(draft.counselDate ?? '')
     // 프로그래매틱 setContent는 emitUpdate=false → dirty로 잡히지 않는다
     editor.commands.setContent(draft.markdown)
-    // 신규 초안(직접 작성/AI 생성)은 저장 전이므로 편집 상태로 열고 닫기 시 확인이 필요하다
+    // 신규 초안(직접 작성/AI 생성)은 저장 전이므로 편집 상태로 연다 (닫기 확인은 실제 변경 시에만 표시)
     const startEdit = !draft.reportId
     setMode(startEdit ? 'edit' : 'view')
     editor.setEditable(startEdit)
     setSavedId(null)
-    setDirty(startEdit)
+    setDirty(false)
     setCopied(false)
   }, [draft, editor])
 
