@@ -1,6 +1,6 @@
 // 상담보고서 생성 task — 학생 컨텍스트 주입 → 생성 패스 → 검증 패스
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
-import { AiError } from '../http.ts'
+import { AiError, MAX_RAW_TEXT_LENGTH } from '../http.ts'
 import { COMMON_RULES, callClaudeJson } from '../claude.ts'
 import { buildStudentContext } from '../studentContext.ts'
 import { verifyResult } from '../verify.ts'
@@ -63,6 +63,11 @@ export async function runCounselReport(
   const rawText = typeof body.raw_text === 'string' ? body.raw_text.trim() : ''
   if (!studentId || !rawText)
     throw new AiError('invalid_request', 'student_id와 raw_text가 필요합니다.')
+  if (rawText.length > MAX_RAW_TEXT_LENGTH)
+    throw new AiError(
+      'input_too_long',
+      `상담 원문이 너무 깁니다 (최대 ${MAX_RAW_TEXT_LENGTH.toLocaleString()}자). 내용을 나눠서 생성해 주세요.`,
+    )
 
   const studentContext = await buildStudentContext(supabase, studentId)
 

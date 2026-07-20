@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { getAiService } from '@/services/ai'
+import { getAiService, MAX_AI_SOURCE_LENGTH } from '@/services/ai'
 import { counselResultToSections, fetchCounselReports, sectionsToMarkdown } from '@/services/aiReports'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
@@ -110,7 +110,12 @@ export function CounselReportTab({ student }: { student: Student }) {
             <Button variant="secondary" onClick={() => setAiInputOpen(false)}>
               취소
             </Button>
-            <Button disabled={!sourceText.trim()} onClick={() => generateMutation.mutate()}>
+            <Button
+              disabled={
+                !sourceText.trim() || sourceText.trim().length > MAX_AI_SOURCE_LENGTH
+              }
+              onClick={() => generateMutation.mutate()}
+            >
               {generateMutation.isError ? '재시도' : 'AI 보고서 생성'}
             </Button>
           </div>

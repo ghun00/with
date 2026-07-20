@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Field'
+import { MAX_AI_SOURCE_LENGTH } from '@/services/ai'
 
 // AI 원문 입력 카드: 직접 붙여넣기 + TXT 파일 업로드 (prd §6.7 원문 등록)
 export function AiSourceInput({
@@ -8,14 +9,17 @@ export function AiSourceInput({
   onChange,
   placeholder,
   disabled,
+  maxLength = MAX_AI_SOURCE_LENGTH,
 }: {
   value: string
   onChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  maxLength?: number
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [fileError, setFileError] = useState('')
+  const over = value.length > maxLength
 
   const handleFile = (file: File | undefined) => {
     setFileError('')
@@ -58,8 +62,16 @@ export function AiSourceInput({
           </Button>
           {fileError && <span className="text-caption text-danger">{fileError}</span>}
         </div>
-        <span className="text-caption text-fg-tertiary">{value.length.toLocaleString()}자</span>
+        <span className={`text-caption ${over ? 'text-danger' : 'text-fg-tertiary'}`}>
+          {value.length.toLocaleString()} / {maxLength.toLocaleString()}자
+        </span>
       </div>
+      {over && (
+        <p className="mt-2 rounded-field bg-danger-soft px-3 py-2 text-caption text-danger">
+          원문이 최대 길이를 넘었습니다. 약 {(value.length - maxLength).toLocaleString()}자를 줄이거나
+          내용을 나눠서 등록해 주세요.
+        </p>
+      )}
       <input
         ref={fileRef}
         type="file"

@@ -8,11 +8,13 @@ import type {
   KakaoAnalysisResult,
   MonthlyReportResult,
 } from './index'
+import { MAX_AI_SOURCE_LENGTH } from './index'
 
 const ERROR_MESSAGES: Record<string, string> = {
   unauthorized: '로그인이 만료되었습니다. 다시 로그인해 주세요.',
   student_not_found: '학생을 찾을 수 없거나 접근 권한이 없습니다.',
   invalid_request: '요청이 올바르지 않습니다. 입력 내용을 확인해 주세요.',
+  input_too_long: `원문이 너무 깁니다 (최대 ${MAX_AI_SOURCE_LENGTH.toLocaleString()}자). 내용을 나눠서 생성해 주세요.`,
   rate_limited: '요청이 많아 잠시 후 다시 시도해 주세요.',
   overloaded: 'AI 서비스가 혼잡합니다. 잠시 후 다시 시도해 주세요.',
   ai_error: 'AI 생성에 실패했습니다. 다시 시도해 주세요.',
