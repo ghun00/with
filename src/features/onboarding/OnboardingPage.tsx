@@ -1,17 +1,31 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { createGroup } from '@/services/groups'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useGroup } from '@/features/group/GroupProvider'
+import { useAcceptInvite, PENDING_INVITE_TOKEN_KEY } from '@/features/invite/useAcceptInvite'
 import { Button } from '@/components/ui/Button'
 import { Input, Label } from '@/components/ui/Field'
+import { Spinner } from '@/components/ui/Spinner'
 
 export function OnboardingPage() {
   const navigate = useNavigate()
   const { session, profile, signOut } = useAuth()
   const { current, refetch, setCurrentGroupId } = useGroup()
   const [name, setName] = useState('')
+
+  // 최초 렌더에서 동기적으로 한 번만 읽어, 자동 참여 확인 전 그룹 생성 폼이
+  // 잠깐 보였다 사라지는 깜빡임을 방지한다
+  const [pendingToken] = useState(() => localStorage.getItem(PENDING_INVITE_TOKEN_KEY))
+  const { status: inviteStatus, accept } = useAcceptInvite()
+  const attemptedRef = useRef(false)
+
+  useEffect(() => {
+    if (!session || current || !pendingToken || attemptedRef.current) return
+    attemptedRef.current = true
+    accept(pendingToken)
+  }, [session, current, pendingToken, accept])
 
   const mutation = useMutation({
     mutationFn: () => createGroup(name.trim()),
@@ -26,6 +40,18 @@ export function OnboardingPage() {
   if (!session) return <Navigate to="/login" replace />
   if (current && !mutation.isPending) return <Navigate to="/students" replace />
 
+  const isAutoAccepting = Boolean(pendingToken) && inviteStatus !== 'error'
+  if (isAutoAccepting) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-page px-4">
+        <div className="w-full max-w-sm rounded-modal bg-surface p-8 text-center shadow-card">
+          <Spinner />
+          <p className="text-body text-fg-secondary">초대를 확인하는 중입니다...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-page px-4">
       <div className="w-full max-w-md rounded-modal bg-surface p-8 shadow-card">
@@ -36,6 +62,12 @@ export function OnboardingPage() {
           아직 소속된 그룹이 없습니다. 새 그룹(컨설팅 조직)을 만들거나, 대표 관리자에게 초대
           링크를 요청하세요.
         </p>
+
+        {inviteStatus === 'error' && (
+          <p className="mt-4 text-body text-danger">
+            저장된 초대 링크가 유효하지 않습니다. 초대 링크를 다시 요청해주세요.
+          </p>
+        )}
 
         <form
           className="mt-8"
