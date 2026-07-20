@@ -68,11 +68,13 @@ export function CounselReportTab({ student }: { student: Student }) {
     mutationFn: () =>
       getAiService().generateCounselReport({ studentId: student.id, rawText: sourceText.trim() }),
     onSuccess: (result) => {
+      // AI가 날짜를 특정 못하면 빈 문자열/"확인 필요"를 줄 수 있어 YYYY-MM-DD 형식만 유효 일시로 취급
+      const counselDate = /^\d{4}-\d{2}-\d{2}$/.test(result.counsel_date) ? result.counsel_date : null
       setEditorDraft({
         kind: 'counsel',
-        title: `${result.counsel_date} 상담보고서`,
+        title: counselDate ? `${counselDate} 상담보고서` : '상담보고서',
         method: 'ai',
-        counselDate: result.counsel_date || null,
+        counselDate,
         markdown: sectionsToMarkdown(counselResultToSections(result)),
         sourceText: sourceText.trim(),
       })

@@ -72,11 +72,13 @@ async function buildMonthlyContext(
     supabase
       .from('student_activities')
       .select('name, status, due_date, completed_at, created_at')
-      .eq('student_id', studentId),
+      .eq('student_id', studentId)
+      .order('created_at'),
     supabase
       .from('counsel_reports')
       .select('title, counsel_date, created_at, result')
-      .eq('student_id', studentId),
+      .eq('student_id', studentId)
+      .order('created_at'),
   ])
   for (const res of [memosRes, activitiesRes, reportsRes]) {
     if (res.error) {
