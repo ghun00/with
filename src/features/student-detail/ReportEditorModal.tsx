@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { EditorContent, useEditor } from '@tiptap/react'
+import type { Editor } from '@tiptap/core'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import StarterKit from '@tiptap/starter-kit'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
@@ -42,19 +44,60 @@ export interface ReportEditorDraft {
   sourceText: string
 }
 
-// 상담보고서 직접 작성 기본 템플릿 — 섹션별 기본 형식(글머리 기호/체크리스트) 포함 (editReport.md §5)
+// 상담보고서 직접 작성 기본 템플릿 — 실제 마커 대신 소제목별 placeholder만 보인다 (editReport.md §5)
 export const COUNSEL_TEMPLATE_SECTIONS: CounselReportSection[] = [
   { name: '상담 목적', content: '' },
-  { name: '주요 논의', content: '- ' },
+  { name: '주요 논의', content: '' },
   { name: '학생 현황', content: '' },
-  { name: '결정 사항', content: '- ' },
-  { name: '학생 To Do', content: '- [ ] ' },
-  { name: '컨설턴트 To Do', content: '- [ ] ' },
+  { name: '결정 사항', content: '' },
+  { name: '학생 To Do', content: '' },
+  { name: '컨설턴트 To Do', content: '' },
   { name: '다음 상담 계획', content: '' },
 ]
 
 // 신규 상담보고서 진입 시 에디터에 채우는 기본 Markdown
 export const COUNSEL_TEMPLATE_MARKDOWN = sectionsToMarkdown(COUNSEL_TEMPLATE_SECTIONS)
+
+// 상담보고서 직접 작성 템플릿의 소제목별 placeholder 안내 문구 (마크다운 단축키 힌트는 포함하지 않음)
+const COUNSEL_SECTION_PLACEHOLDERS: Record<string, string> = {
+  '상담 목적': '이번 상담의 목적을 입력하세요.',
+  '주요 논의': '상담에서 논의한 내용을 입력하세요.',
+  '학생 현황': '학생의 현재 상황을 입력하세요.',
+  '결정 사항': '상담을 통해 결정된 사항을 입력하세요.',
+  '학생 To Do': '학생이 할 일을 입력하세요.',
+  '컨설턴트 To Do': '컨설턴트가 할 일을 입력하세요.',
+  '다음 상담 계획': '다음 상담 계획을 입력하세요.',
+}
+
+const GENERIC_PLACEHOLDER = 'Markdown 문법(#, -, 1., [], >, ---)으로 내용을 입력하세요.'
+
+// pos 바로 앞(문서상 이전)에 오는 최상위 heading 노드의 텍스트를 찾는다 — 없으면 null.
+function findPrecedingHeadingText(doc: ProseMirrorNode, pos: number): string | null {
+  let headingText: string | null = null
+  doc.forEach((node, offset) => {
+    if (offset >= pos) return
+    if (node.type.name === 'heading') headingText = node.textContent
+  })
+  return headingText
+}
+
+// 최상위 heading 뒤에 문단이 없는 경우(다음이 또 다른 heading이거나 문서 끝) 빈 문단을 삽입해
+// placeholder가 보일 자리를 만든다. sectionsToMarkdown()이 빈 body를 버려 heading끼리 붙기 때문.
+function insertEmptyBodiesAfterHeadings(editor: Editor) {
+  const positions: number[] = []
+  let pendingHeadingEnd: number | null = null
+  editor.state.doc.forEach((node, offset) => {
+    const isHeading = node.type.name === 'heading'
+    if (pendingHeadingEnd !== null && isHeading) positions.push(pendingHeadingEnd)
+    pendingHeadingEnd = isHeading ? offset + node.nodeSize : null
+  })
+  if (pendingHeadingEnd !== null) positions.push(pendingHeadingEnd)
+
+  // 뒤에서부터 삽입해야 앞쪽 위치가 밀리지 않는다
+  ;[...positions].reverse().forEach((pos) => {
+    editor.chain().insertContentAt(pos, { type: 'paragraph' }).run()
+  })
+}
 
 function CopyIcon() {
   return (
@@ -104,7 +147,17 @@ export function ReportEditorModal({
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       TaskList,
       TaskItem.configure({ nested: false }),
-      Placeholder.configure({ placeholder: 'Markdown 문법(#, -, 1., [], >, ---)으로 내용을 입력하세요.' }),
+      Placeholder.configure({
+        showOnlyCurrent: false,
+        placeholder: ({ editor, node, pos }) => {
+          if (node.type.name === 'paragraph') {
+            const headingText = findPrecedingHeadingText(editor.state.doc, pos)
+            const custom = headingText ? COUNSEL_SECTION_PLACEHOLDERS[headingText] : undefined
+            if (custom) return custom
+          }
+          return GENERIC_PLACEHOLDER
+        },
+      }),
       Markdown.configure({ html: false, tightLists: true, transformPastedText: true }),
     ],
     content: '',
@@ -119,6 +172,10 @@ export function ReportEditorModal({
     setCounselDate(draft.counselDate ?? '')
     // setContent/setEditable 모두 emitUpdate 기본값이 true(Tiptap 3)라 명시적으로 꺼야 onUpdate가 dirty를 잘못 세우지 않는다
     editor.commands.setContent(draft.markdown, { emitUpdate: false })
+    // 상담보고서 직접 작성 새 초안만: heading끼리 붙어 있는 자리에 placeholder용 빈 문단을 만든다
+    if (draft.kind === 'counsel' && draft.method === 'manual' && !draft.reportId) {
+      insertEmptyBodiesAfterHeadings(editor)
+    }
     // 신규 초안(직접 작성/AI 생성)은 저장 전이므로 편집 상태로 연다 (닫기 확인은 실제 변경 시에만 표시)
     const startEdit = !draft.reportId
     setMode(startEdit ? 'edit' : 'view')
