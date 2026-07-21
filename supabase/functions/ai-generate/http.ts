@@ -11,7 +11,10 @@ export type AiErrorCode =
 // 원문 길이 상한. 생성+검증 2패스가 Edge Function 150초 wall-clock 한도 안에 들도록
 // 하는 백스톱 — 초과 요청은 150초를 기다렸다 실패하는 대신 즉시 명확한 에러로 막는다.
 // (프론트에도 동일 값 MAX_AI_SOURCE_LENGTH로 존재)
-export const MAX_RAW_TEXT_LENGTH = 12000
+// 2026-07-21: 12,000 → 30,000 → 40,000으로 임시 확대(청크 분할 없이 상수만 상향) — 40k 근처
+// 입력이 실제로 wall-clock 안에 끝나는지 실측 검증 전이므로, 타임아웃/546이 재현되면
+// 청크 분할(맵-리듀스) 재작업 필요.
+export const MAX_RAW_TEXT_LENGTH = 40000
 
 export class AiError extends Error {
   constructor(
