@@ -1,9 +1,10 @@
 // 카카오톡 분석 task — 학생 컨텍스트 주입 → 생성 패스 → 검증 패스
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { AiError, MAX_RAW_TEXT_LENGTH } from '../http.ts'
-import { COMMON_RULES, callClaudeJson } from '../claude.ts'
+import { COMMON_RULES, GEN_EFFORT, callClaudeJson } from '../claude.ts'
 import { buildStudentContext } from '../studentContext.ts'
 import { verifyResult } from '../verify.ts'
+import type { StageReporter } from '../jobs.ts'
 
 // 프론트 KakaoAnalysisResult(src/services/ai/index.ts)와 1:1 — 필드 변경 금지
 interface KakaoAnalysisResult {
@@ -62,6 +63,7 @@ ${COMMON_RULES}`
 export async function runKakaoAnalysis(
   supabase: SupabaseClient,
   body: Record<string, unknown>,
+  onStage: StageReporter = async () => {},
 ): Promise<KakaoAnalysisResult & { warnings: string[] }> {
   const studentId = typeof body.student_id === 'string' ? body.student_id : ''
   const rawText = typeof body.raw_text === 'string' ? body.raw_text.trim() : ''
@@ -73,14 +75,18 @@ export async function runKakaoAnalysis(
       `대화 원문이 너무 깁니다 (최대 ${MAX_RAW_TEXT_LENGTH.toLocaleString()}자). 내용을 나눠서 분석해 주세요.`,
     )
 
+  await onStage('context')
   const studentContext = await buildStudentContext(supabase, studentId)
 
+  await onStage('generating')
   const generated = await callClaudeJson<KakaoAnalysisResult>({
     system: `${SYSTEM}\n\n${studentContext}`,
     userText: `[카카오톡 대화 원문]\n${rawText}`,
     schema: SCHEMA,
+    effort: GEN_EFFORT,
   })
 
+  await onStage('verifying')
   return verifyResult({
     taskLabel: '카카오톡 분석',
     studentContext,

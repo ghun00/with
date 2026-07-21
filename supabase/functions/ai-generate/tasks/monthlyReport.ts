@@ -1,9 +1,10 @@
 // 월간 보고서 task — 서버에서 대상 월 컨텍스트 조립 → 생성 패스 → 검증 패스 (스펙 §월간 보고서 컨텍스트)
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { AiError } from '../http.ts'
-import { COMMON_RULES, callClaudeJson } from '../claude.ts'
+import { COMMON_RULES, GEN_EFFORT, callClaudeJson } from '../claude.ts'
 import { buildStudentContext } from '../studentContext.ts'
 import { verifyResult } from '../verify.ts'
+import type { StageReporter } from '../jobs.ts'
 
 // 프론트 MonthlyReportResult(src/services/ai/index.ts) 본문 7개 목차와 1:1 — 필드 변경 금지
 interface MonthlyReportResult {
@@ -129,6 +130,7 @@ async function buildMonthlyContext(
 export async function runMonthlyReport(
   supabase: SupabaseClient,
   body: Record<string, unknown>,
+  onStage: StageReporter = async () => {},
 ): Promise<MonthlyReportResult & { warnings: string[]; source_context: string }> {
   const studentId = typeof body.student_id === 'string' ? body.student_id : ''
   const targetMonth = typeof body.target_month === 'string' ? body.target_month : ''
@@ -136,15 +138,19 @@ export async function runMonthlyReport(
   if (!studentId || !/^\d{4}-\d{2}$/.test(targetMonth))
     throw new AiError('invalid_request', 'student_id와 target_month(YYYY-MM)가 필요합니다.')
 
+  await onStage('context')
   const studentContext = await buildStudentContext(supabase, studentId)
   const context = await buildMonthlyContext(supabase, studentId, targetMonth, note)
 
+  await onStage('generating')
   const generated = await callClaudeJson<MonthlyReportResult>({
     system: `${SYSTEM}\n\n${studentContext}`,
     userText: `[이번 달 기록]\n${context}`,
     schema: SCHEMA,
+    effort: GEN_EFFORT,
   })
 
+  await onStage('verifying')
   const verified = await verifyResult({
     taskLabel: '월간 보고서',
     studentContext,

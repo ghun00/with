@@ -26,34 +26,64 @@ function getClient(): Anthropic {
   return client
 }
 
+// 일시오류(429/529) 자동 재시도: 짧은 지수 백오프로 최대 2회 더 시도한다.
+// 타임아웃·그 외 오류는 재시도해도 같은 결과라 즉시 실패시킨다 (재시도는 사용자 수동 몫).
+const MAX_RETRIES = 2
+const RETRY_BASE_MS = 1500
+
+function isTransient(e: unknown): boolean {
+  return (
+    e instanceof Anthropic.RateLimitError ||
+    (e instanceof Anthropic.APIError && e.status === 529)
+  )
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// 생성 패스 사고 깊이. claude-sonnet-5는 thinking 미지정 시 adaptive가 effort high로 켜져
+// 상담 추출·재배치엔 과했다 → low로 낮춰 실시간 지연을 줄인다(structured outputs·adaptive는 유지).
+// 주의: effort는 검증 모델(Haiku 4.5)에서 400이므로 생성 호출에만 넘긴다(verify는 미지정).
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+export const GEN_EFFORT: Effort = 'low'
+
 export async function callClaudeJson<T>(params: {
   system: string
   userText: string
   schema: Record<string, unknown>
   model?: string
+  effort?: Effort
 }): Promise<T> {
-  try {
-    const response = await getClient().messages.create({
-      model: params.model ?? MODEL,
-      max_tokens: 16000,
-      system: params.system,
-      messages: [{ role: 'user', content: params.userText }],
-      output_config: { format: { type: 'json_schema', schema: params.schema } },
-    })
-    if (response.stop_reason === 'refusal')
-      throw new AiError('ai_error', 'AI가 요청 처리를 거부했습니다. 입력 내용을 확인해 주세요.')
-    if (response.stop_reason === 'max_tokens')
-      throw new AiError('ai_error', '입력이 너무 길어 AI 응답이 잘렸습니다. 원문을 나눠서 시도해 주세요.')
-    const block = response.content.find((b) => b.type === 'text')
-    if (!block || block.type !== 'text') throw new AiError('ai_error', 'AI 응답이 비어 있습니다.')
-    return JSON.parse(block.text) as T
-  } catch (e) {
-    if (e instanceof AiError) throw e
-    if (e instanceof Anthropic.RateLimitError)
-      throw new AiError('rate_limited', '요청이 많아 잠시 후 다시 시도해 주세요.')
-    if (e instanceof Anthropic.APIError && e.status === 529)
-      throw new AiError('overloaded', 'AI 서비스가 혼잡합니다. 잠시 후 다시 시도해 주세요.')
-    console.error('[ai-generate] claude error', e)
-    throw new AiError('ai_error', 'AI 호출에 실패했습니다.')
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await getClient().messages.create({
+        model: params.model ?? MODEL,
+        max_tokens: 16000,
+        system: params.system,
+        messages: [{ role: 'user', content: params.userText }],
+        output_config: {
+          format: { type: 'json_schema', schema: params.schema },
+          ...(params.effort ? { effort: params.effort } : {}),
+        },
+      })
+      if (response.stop_reason === 'refusal')
+        throw new AiError('ai_error', 'AI가 요청 처리를 거부했습니다. 입력 내용을 확인해 주세요.')
+      if (response.stop_reason === 'max_tokens')
+        throw new AiError('ai_error', '입력이 너무 길어 AI 응답이 잘렸습니다. 원문을 나눠서 시도해 주세요.')
+      const block = response.content.find((b) => b.type === 'text')
+      if (!block || block.type !== 'text') throw new AiError('ai_error', 'AI 응답이 비어 있습니다.')
+      return JSON.parse(block.text) as T
+    } catch (e) {
+      if (e instanceof AiError) throw e
+      if (isTransient(e) && attempt < MAX_RETRIES) {
+        await sleep(RETRY_BASE_MS * 2 ** attempt)
+        continue
+      }
+      if (e instanceof Anthropic.RateLimitError)
+        throw new AiError('rate_limited', '요청이 많아 잠시 후 다시 시도해 주세요.')
+      if (e instanceof Anthropic.APIError && e.status === 529)
+        throw new AiError('overloaded', 'AI 서비스가 혼잡합니다. 잠시 후 다시 시도해 주세요.')
+      console.error('[ai-generate] claude error', e)
+      throw new AiError('ai_error', 'AI 호출에 실패했습니다.')
+    }
   }
 }
