@@ -26,7 +26,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-page px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-page px-4">
       <div className="w-full max-w-sm">
         <div className="mb-10 text-center">
           <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-modal bg-fg text-title">
@@ -53,6 +53,26 @@ export function LoginPage() {
 
         {error && <p className="mt-4 text-center text-body text-danger">{error}</p>}
       </div>
+
+      <footer className="absolute bottom-0 w-full px-4 py-6 text-center text-caption text-fg-tertiary">
+        <p>
+          프라이데이랩 <span className="text-fg-disabled">|</span> 사업자등록번호 481-11-03110{' '}
+          <span className="text-fg-disabled">|</span> 대표 한지훈
+        </p>
+        <p className="mt-1">© 2026 friday.lab All rights reserved.</p>
+        <p className="mt-1">
+          개인정보처리방침 <span className="text-fg-disabled">|</span> 서비스이용약관{' '}
+          <span className="text-fg-disabled">|</span>{' '}
+          <a
+            href="https://www.ftc.go.kr/bizCommPop.do?wrkr_no=4811103110"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-fg-secondary hover:underline"
+          >
+            사업자등록번호확인
+          </a>
+        </p>
+      </footer>
     </div>
   )
 }
