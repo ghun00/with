@@ -53,7 +53,7 @@ const COUNSEL_SECTION_PLACEHOLDERS: Record<string, string> = {
 
 - 조건: `draft.kind === 'counsel' && draft.method === 'manual' && !draft.reportId`
 - 동작: `editor.commands.setContent(draft.markdown, { emitUpdate: false })` 직후, ProseMirror 최상위 노드를 순회하며 `heading` 노드 뒤에 다른 블록(문단/리스트 등)이 바로 오지 않는 경우(다음이 또 다른 heading이거나 문서의 끝인 경우) 그 위치에 빈 `paragraph` 노드를 삽입한다.
-- 삽입은 위치가 밀리지 않도록 뒤에서부터(역순으)로 처리한 뒤 단일 트랜잭션으로 `dispatch`한다.
+- 삽입은 위치가 밀리지 않도록 뒤에서부터(역순으)로, 위치마다 `editor.chain().insertContentAt(pos, ...).run()`으로 처리한다(문서당 소제목 수만큼의 개별 트랜잭션 — 보고서 문서 크기에서는 무시 가능한 비용).
 - `emitUpdate`가 걸리지 않도록 다른 `setContent` 호출들과 동일하게 처리해 `dirty` 상태를 잘못 세우지 않는다.
 
 결과적으로 이 문서에는 "## 소제목" 다음에 항상 빈 문단이 하나씩 존재하게 되고, 그 빈 문단이 placeholder를 표시할 자리가 된다.
