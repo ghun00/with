@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getAiService, MAX_AI_SOURCE_LENGTH } from '@/services/ai'
+import { MAX_AI_SOURCE_LENGTH, type AiJob } from '@/services/ai'
 import {
-  createKakaoAnalysis,
+  applyKakaoJobResult,
   fetchKakaoAnalyses,
   findKakaoAnalysisByHash,
 } from '@/services/aiReports'
+import { useAiJob } from './useAiJob'
 import { sha256Hex } from '@/lib/hash'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
@@ -38,22 +39,23 @@ export function KakaoAnalysisTab({ studentId }: { studentId: string }) {
     queryFn: () => fetchKakaoAnalyses(studentId),
   })
 
-  const generateMutation = useMutation({
-    mutationFn: async ({ hash }: { hash: string }) => {
-      const text = sourceText.trim()
-      const result = await getAiService().analyzeKakaoChat({ studentId, rawText: text })
-      return createKakaoAnalysis({ studentId, sourceText: text, sourceHash: hash, result })
-    },
-    onSuccess: (newId) => {
+  // 분석은 서버측 잡으로 처리하고, 완료를 감지하면 DB에 저장(createKakaoAnalysis) 후 상세를 연다.
+  const ai = useAiJob({
+    studentId,
+    task: 'kakao_analysis',
+    onSucceeded: async (job: AiJob) => {
+      // 신규 생성/재생성 여부는 job.input 의도로 결정된다 (어느 화면이 떠 있든 일관 동작)
+      const { createdId } = await applyKakaoJobResult(job, studentId)
+      void queryClient.invalidateQueries({ queryKey: ['kakaoAnalyses', studentId] })
+      void queryClient.invalidateQueries({ queryKey: ['activities', studentId] })
       setCreating(false)
       setSourceText('')
       setDuplicate(null)
-      void queryClient.invalidateQueries({ queryKey: ['kakaoAnalyses', studentId] })
-      void queryClient.invalidateQueries({ queryKey: ['activities', studentId] })
-      setSelectedId(newId)
+      if (createdId) setSelectedId(createdId)
     },
   })
 
+  // 완전 중복 검사(원문 해시) 후 통과하면 분석 잡을 시작한다
   const checkMutation = useMutation({
     mutationFn: async () => {
       const hash = await sha256Hex(sourceText.trim())
@@ -62,26 +64,54 @@ export function KakaoAnalysisTab({ studentId }: { studentId: string }) {
     },
     onSuccess: ({ existing, hash }) => {
       if (existing) setDuplicate({ existing, hash })
-      else generateMutation.mutate({ hash })
+      else ai.start({ task: 'kakao_analysis', studentId, rawText: sourceText.trim(), sourceHash: hash })
     },
   })
 
+  // 잡은 (student, kakao_analysis) 단위 1개다. 신규 생성과 상세 재분석이 같은 task를 쓰므로
+  // 실패 잡의 의도를 input.analysis_id로 구분한다 — 재생성 실패는 등록 폼과 무관.
+  const createFailedJob = ai.failedJob && !ai.failedJob.input.analysis_id ? ai.failedJob : null
+
+  // 신규 생성 실패(또는 이탈 후 복귀) → 등록 폼을 열고 원문을 복원한다
+  const prefilledRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (createFailedJob && prefilledRef.current !== createFailedJob.id) {
+      prefilledRef.current = createFailedJob.id
+      setCreating(true)
+      setSourceText(String(createFailedJob.input.raw_text ?? ''))
+    }
+  }, [createFailedJob])
+
+  const errorMessage = createFailedJob?.error_message ?? ai.startError?.message ?? null
+  const hasError = Boolean(createFailedJob) || Boolean(ai.startError)
+
+  const startRegenerate = (analysisId: string, sourceText: string) =>
+    ai.start({ task: 'kakao_analysis', studentId, rawText: sourceText, analysisId })
+
   const selected = analyses?.find((a) => a.id === selectedId)
   if (selected) {
+    const regenError =
+      ai.failedJob?.input.analysis_id === selected.id ? ai.failedJob.error_message : null
     return (
       <KakaoAnalysisDetail
         analysis={selected}
         studentId={studentId}
         onBack={() => setSelectedId(null)}
+        aiRunning={ai.isRunning || ai.isStarting}
+        aiStage={ai.stage}
+        aiError={regenError ?? ai.startError?.message ?? null}
+        onStartRegenerate={startRegenerate}
       />
     )
   }
 
-  if (generateMutation.isPending) {
-    return <AiGeneratingIndicator messages={GENERATE_MESSAGES} />
+  if (ai.isRunning || ai.isStarting) {
+    return (
+      <AiGeneratingIndicator messages={GENERATE_MESSAGES} stage={ai.stage} />
+    )
   }
 
-  if (creating) {
+  if (creating || createFailedJob) {
     return (
       <FadeIn className="space-y-4">
         <div className="rounded-card border border-line bg-surface p-5 shadow-card">
@@ -89,9 +119,9 @@ export function KakaoAnalysisTab({ studentId }: { studentId: string }) {
           <p className="mb-4 text-body text-fg-secondary">
             카카오톡 대화 내보내기(TXT) 파일을 업로드하거나 내용을 붙여넣으면 AI가 분석합니다.
           </p>
-          {(checkMutation.isError || generateMutation.isError) && (
+          {(checkMutation.isError || hasError) && (
             <p className="mb-3 rounded-field bg-danger-soft px-3 py-2 text-body text-danger">
-              분석에 실패했습니다. 원문은 유지되니 다시 시도해 주세요.
+              {errorMessage ?? '분석에 실패했습니다.'} 원문은 유지되니 다시 시도해 주세요.
             </p>
           )}
           {duplicate && (
@@ -115,7 +145,14 @@ export function KakaoAnalysisTab({ studentId }: { studentId: string }) {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => generateMutation.mutate({ hash: duplicate.hash })}
+                  onClick={() =>
+                    ai.start({
+                      task: 'kakao_analysis',
+                      studentId,
+                      rawText: sourceText.trim(),
+                      sourceHash: duplicate.hash,
+                    })
+                  }
                 >
                   그래도 분석
                 </Button>
@@ -134,6 +171,7 @@ export function KakaoAnalysisTab({ studentId }: { studentId: string }) {
             <Button
               variant="secondary"
               onClick={() => {
+                if (createFailedJob) ai.dismiss(createFailedJob.id)
                 setCreating(false)
                 setDuplicate(null)
               }}
@@ -151,7 +189,7 @@ export function KakaoAnalysisTab({ studentId }: { studentId: string }) {
             >
               {checkMutation.isPending
                 ? '확인 중...'
-                : checkMutation.isError || generateMutation.isError
+                : checkMutation.isError || hasError
                   ? '재시도'
                   : 'AI 분석'}
             </Button>

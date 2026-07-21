@@ -10,6 +10,7 @@ import {
   type MonthlyReport,
 } from '@/types'
 import type {
+  AiJob,
   CounselReportResult,
   KakaoAnalysisResult,
   MonthlyReportResult,
@@ -240,6 +241,29 @@ export async function createKakaoAnalysis(params: {
     summary: '카카오톡 대화 분석',
   })
   return data.id as string
+}
+
+// 카카오 분석 잡 완료 처리 — 의도(input.analysis_id 유무)로 저장 방식을 결정한다.
+// 이렇게 하면 완료 시점에 어느 화면(목록 탭/상세)이 떠 있든 동일하게 동작해,
+// 생성 잡을 재생성으로 잘못 저장하거나 그 반대가 되는 일이 없다.
+// createdId를 돌려주며(신규 생성 시), 재생성이면 null.
+export async function applyKakaoJobResult(
+  job: AiJob,
+  studentId: string,
+): Promise<{ createdId: string | null }> {
+  const result = job.result as KakaoAnalysisResult
+  const analysisId = typeof job.input.analysis_id === 'string' ? job.input.analysis_id : null
+  if (analysisId) {
+    await regenerateAiReportResult('kakao_analyses', analysisId, studentId, { ...result })
+    return { createdId: null }
+  }
+  const createdId = await createKakaoAnalysis({
+    studentId,
+    sourceText: String(job.input.raw_text ?? ''),
+    sourceHash: String(job.input.source_hash ?? ''),
+    result,
+  })
+  return { createdId }
 }
 
 export async function createMonthlyReport(params: {

@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { getAiService, MAX_AI_SOURCE_LENGTH } from '@/services/ai'
+import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { MAX_AI_SOURCE_LENGTH, type AiJob, type CounselReportResult } from '@/services/ai'
 import { counselResultToSections, fetchCounselReports, sectionsToMarkdown } from '@/services/aiReports'
+import { useAiJob } from './useAiJob'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -64,10 +65,12 @@ export function CounselReportTab({ student }: { student: Student }) {
   })
 
   // AI 생성은 저장하지 않고 결과가 입력된 편집 상태의 에디터를 연다 — 검토·수정 후 저장 (editReport.md 3차 §9)
-  const generateMutation = useMutation({
-    mutationFn: () =>
-      getAiService().generateCounselReport({ studentId: student.id, rawText: sourceText.trim() }),
-    onSuccess: (result) => {
+  // 생성은 서버측 잡으로 처리하고, 완료를 감지하면 결과를 에디터로 자동 오픈한다.
+  const ai = useAiJob({
+    studentId: student.id,
+    task: 'counsel_report',
+    onSucceeded: (job: AiJob) => {
+      const result = job.result as CounselReportResult
       // AI가 날짜를 특정 못하면 빈 문자열/"확인 필요"를 줄 수 있어 YYYY-MM-DD 형식만 유효 일시로 취급
       const counselDate = /^\d{4}-\d{2}-\d{2}$/.test(result.counsel_date) ? result.counsel_date : null
       setEditorDraft({
@@ -76,18 +79,34 @@ export function CounselReportTab({ student }: { student: Student }) {
         method: 'ai',
         counselDate,
         markdown: sectionsToMarkdown(counselResultToSections(result)),
-        sourceText: sourceText.trim(),
+        sourceText: String(job.input.raw_text ?? ''),
       })
       setAiInputOpen(false)
       setSourceText('')
     },
   })
 
-  if (generateMutation.isPending) {
-    return <AiGeneratingIndicator messages={GENERATE_MESSAGES} />
+  // 실패 잡(신규 실패 또는 이탈 후 복귀) → 입력 폼을 열고 원문을 복원해 재시도 가능하게 한다
+  const prefilledRef = useRef<string | null>(null)
+  useEffect(() => {
+    const fj = ai.failedJob
+    if (fj && prefilledRef.current !== fj.id) {
+      prefilledRef.current = fj.id
+      setAiInputOpen(true)
+      setSourceText(String(fj.input.raw_text ?? ''))
+    }
+  }, [ai.failedJob])
+
+  const errorMessage = ai.failedJob?.error_message ?? ai.startError?.message ?? null
+  const hasError = Boolean(ai.failedJob) || Boolean(ai.startError)
+
+  if (ai.isRunning || ai.isStarting) {
+    return (
+      <AiGeneratingIndicator messages={GENERATE_MESSAGES} stage={ai.stage} />
+    )
   }
 
-  if (aiInputOpen) {
+  if (aiInputOpen || ai.failedJob) {
     return (
       <FadeIn className="space-y-4">
         <div className="rounded-card border border-line bg-surface p-5 shadow-card">
@@ -96,9 +115,9 @@ export function CounselReportTab({ student }: { student: Student }) {
             상담 원문을 붙여넣거나 TXT 파일을 업로드하면 AI가 보고서 초안을 작성합니다. 생성된
             내용은 편집 화면에서 검토·수정 후 저장됩니다.
           </p>
-          {generateMutation.isError && (
+          {hasError && (
             <p className="mb-3 rounded-field bg-danger-soft px-3 py-2 text-body text-danger">
-              보고서 생성에 실패했습니다. 원문은 유지되니 다시 시도해 주세요.
+              {errorMessage ?? '보고서 생성에 실패했습니다.'} 원문은 유지되니 다시 시도해 주세요.
             </p>
           )}
           <AiSourceInput
@@ -107,16 +126,24 @@ export function CounselReportTab({ student }: { student: Student }) {
             placeholder="상담 원문을 입력하세요"
           />
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setAiInputOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (ai.failedJob) ai.dismiss(ai.failedJob.id)
+                setAiInputOpen(false)
+              }}
+            >
               취소
             </Button>
             <Button
               disabled={
                 !sourceText.trim() || sourceText.trim().length > MAX_AI_SOURCE_LENGTH
               }
-              onClick={() => generateMutation.mutate()}
+              onClick={() =>
+                ai.start({ task: 'counsel_report', studentId: student.id, rawText: sourceText.trim() })
+              }
             >
-              {generateMutation.isError ? '재시도' : 'AI 보고서 생성'}
+              {hasError ? '재시도' : 'AI 보고서 생성'}
             </Button>
           </div>
         </div>

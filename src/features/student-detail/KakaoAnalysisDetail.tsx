@@ -1,11 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAiService, type KakaoAnalysisResult } from '@/services/ai'
-import {
-  finalizeAiReport,
-  regenerateAiReportResult,
-  updateAiReportResult,
-} from '@/services/aiReports'
+import { type AiJobStage, type KakaoAnalysisResult } from '@/services/ai'
+import { finalizeAiReport, updateAiReportResult } from '@/services/aiReports'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { AI_REPORT_STATUS_TONE, Badge } from '@/components/ui/Badge'
@@ -60,10 +56,20 @@ export function KakaoAnalysisDetail({
   analysis,
   studentId,
   onBack,
+  aiRunning,
+  aiStage,
+  aiError,
+  onStartRegenerate,
 }: {
   analysis: KakaoAnalysis
   studentId: string
   onBack: () => void
+  // AI 재분석 잡 상태는 상위(KakaoAnalysisTab)가 소유해 내려준다 — 잡 폴링/완료 처리를
+  // 한 곳(탭)에서만 하도록 하여 목록/상세 동시 마운트 시 중복 실행을 막는다.
+  aiRunning: boolean
+  aiStage: AiJobStage | null
+  aiError: string | null
+  onStartRegenerate: (analysisId: string, sourceText: string) => void
 }) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
@@ -108,21 +114,13 @@ export function KakaoAnalysisDetail({
     onSuccess: invalidate,
   })
 
-  const regenerateMutation = useMutation({
-    mutationFn: async () => {
-      const result = await getAiService().analyzeKakaoChat({ studentId, rawText: analysis.source_text })
-      await regenerateAiReportResult('kakao_analyses', analysis.id, studentId, { ...result })
-    },
-    onSuccess: invalidate,
-  })
-
   const handleRegenerate = () => {
     if (!window.confirm('재분석하면 현재 결과(수정 포함)가 새 결과로 대체됩니다. 계속할까요?')) return
-    regenerateMutation.mutate()
+    onStartRegenerate(analysis.id, analysis.source_text)
   }
 
-  if (regenerateMutation.isPending) {
-    return <AiGeneratingIndicator messages={REGENERATE_MESSAGES} />
+  if (aiRunning) {
+    return <AiGeneratingIndicator messages={REGENERATE_MESSAGES} stage={aiStage} />
   }
 
   const period = analysisPeriod(analysis.result.daily_highlights)
@@ -198,9 +196,9 @@ export function KakaoAnalysisDetail({
         </div>
       )}
 
-      {(saveMutation.isError || finalizeMutation.isError || regenerateMutation.isError) && (
+      {(saveMutation.isError || finalizeMutation.isError || aiError) && (
         <p className="rounded-field bg-danger-soft px-3 py-2 text-body text-danger">
-          처리에 실패했습니다. 다시 시도해 주세요.
+          {aiError ?? '처리에 실패했습니다.'} 다시 시도해 주세요.
         </p>
       )}
 

@@ -43,27 +43,41 @@ export interface MonthlyReportResult {
   source_context?: string       // 서버가 조립한 컨텍스트 원문 — source_text 스냅샷 저장용
 }
 
-export interface CounselReportInput {
-  studentId: string
-  rawText: string
+// ===== 비동기 잡 모델 =====
+// 생성은 서버측 ai_jobs 잡으로 처리한다. startJob이 잡을 만들고 jobId만 즉시 돌려주며,
+// 클라는 fetchActiveJob으로 폴링해 진행/완료/실패를 추적한다 (마이그레이션 0013).
+export type AiTask = 'counsel_report' | 'kakao_analysis' | 'monthly_report'
+export type AiJobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+export type AiJobStage = 'context' | 'generating' | 'verifying' | 'done'
+
+export interface AiJob {
+  id: string
+  student_id: string
+  task: AiTask
+  status: AiJobStatus
+  stage: AiJobStage | null
+  input: Record<string, unknown>
+  result: unknown | null
+  error_code: string | null
+  error_message: string | null
+  consumed_at: string | null
+  created_at: string
+  updated_at: string
 }
 
-export interface KakaoAnalysisInput {
-  studentId: string
-  rawText: string
-}
-
-export interface MonthlyReportInput {
-  studentId: string
-  targetMonth: string
-  note?: string
-}
+export type StartJobInput =
+  | { task: 'counsel_report'; studentId: string; rawText: string }
+  // 신규 분석은 sourceHash(중복 감지 키), 기존 분석 재생성은 analysisId를 준다
+  | { task: 'kakao_analysis'; studentId: string; rawText: string; sourceHash?: string; analysisId?: string }
+  | { task: 'monthly_report'; studentId: string; targetMonth: string; note?: string }
 
 export interface AiService {
-  generateCounselReport(input: CounselReportInput): Promise<CounselReportResult>
-  analyzeKakaoChat(input: KakaoAnalysisInput): Promise<KakaoAnalysisResult>
-  generateWeeklySummary(context: string): Promise<string>
-  generateMonthlyReport(input: MonthlyReportInput): Promise<MonthlyReportResult>
+  // 잡 시작 → jobId 반환 (브라우저는 연결을 붙들지 않는다)
+  startJob(input: StartJobInput): Promise<string>
+  // (student, task)의 미소비 최신 잡 1건 (폴링·마운트 복구용)
+  fetchActiveJob(studentId: string, task: AiTask): Promise<AiJob | null>
+  // 결과를 편집기/상세로 열어 소비했음을 기록 → 복귀 시 재오픈 방지
+  markJobConsumed(jobId: string): Promise<void>
 }
 
 // VITE_USE_MOCK_AI=true → mock (Edge Function 미배포 환경의 UI 개발용)

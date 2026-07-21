@@ -1,12 +1,13 @@
-import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { getAiService } from '@/services/ai'
+import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { type AiJob, type MonthlyReportResult } from '@/services/ai'
 import {
   fetchMonthlyReports,
   formatTargetMonth,
   monthlyResultToSections,
   sectionsToMarkdown,
 } from '@/services/aiReports'
+import { useAiJob } from './useAiJob'
 import { formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -58,19 +59,18 @@ export function MonthlyReportTab({ student }: { student: Student }) {
 
   // AI 생성은 저장하지 않고 결과가 입력된 편집 상태의 Report Modal을 연다 — 검토·수정 후 저장 (editReport.md 4차 §8)
   // 컨텍스트 조립은 Edge Function이 수행하고 source_context로 돌려준다 (source_text 스냅샷 유지)
-  const generateMutation = useMutation({
-    mutationFn: () =>
-      getAiService().generateMonthlyReport({
-        studentId: student.id,
-        targetMonth,
-        note: note.trim() || undefined,
-      }),
-    onSuccess: (result) => {
+  // 생성은 서버측 잡으로 처리하고, 완료를 감지하면 결과를 에디터로 자동 오픈한다.
+  const ai = useAiJob({
+    studentId: student.id,
+    task: 'monthly_report',
+    onSucceeded: (job: AiJob) => {
+      const result = job.result as MonthlyReportResult
+      const month = String(job.input.target_month ?? targetMonth)
       setEditorDraft({
         kind: 'monthly',
-        title: `${formatTargetMonth(targetMonth)} 월간보고서`,
+        title: `${formatTargetMonth(month)} 월간보고서`,
         method: 'ai',
-        targetMonth,
+        targetMonth: month,
         markdown: sectionsToMarkdown(monthlyResultToSections(result)),
         sourceText: result.source_context ?? '',
       })
@@ -80,20 +80,37 @@ export function MonthlyReportTab({ student }: { student: Student }) {
     },
   })
 
+  // 실패 잡(신규 실패 또는 이탈 후 복귀) → 생성 폼을 열고 대상 월·참고 사항을 복원한다
+  const prefilledRef = useRef<string | null>(null)
+  useEffect(() => {
+    const fj = ai.failedJob
+    if (fj && prefilledRef.current !== fj.id) {
+      prefilledRef.current = fj.id
+      setCreating(true)
+      if (typeof fj.input.target_month === 'string') setTargetMonth(fj.input.target_month)
+      if (typeof fj.input.note === 'string') setNote(fj.input.note)
+    }
+  }, [ai.failedJob])
+
+  const errorMessage = ai.failedJob?.error_message ?? ai.startError?.message ?? null
+  const hasError = Boolean(ai.failedJob) || Boolean(ai.startError)
+
   const handleGenerate = () => {
     const found = reports?.find((r) => r.target_month === targetMonth)
     if (found && !existing) {
       setExisting(found)
       return
     }
-    generateMutation.mutate()
+    ai.start({ task: 'monthly_report', studentId: student.id, targetMonth, note: note.trim() || undefined })
   }
 
-  if (generateMutation.isPending) {
-    return <AiGeneratingIndicator messages={GENERATE_MESSAGES} />
+  if (ai.isRunning || ai.isStarting) {
+    return (
+      <AiGeneratingIndicator messages={GENERATE_MESSAGES} stage={ai.stage} />
+    )
   }
 
-  if (creating) {
+  if (creating || ai.failedJob) {
     return (
       <FadeIn className="space-y-4">
         <div className="rounded-card border border-line bg-surface p-5 shadow-card">
@@ -102,9 +119,9 @@ export function MonthlyReportTab({ student }: { student: Student }) {
             대상 월의 상담·활동·메모 기록을 모아 학부모 전달용 보고서 초안을 작성합니다. 생성된
             내용은 편집 화면에서 검토·수정 후 저장됩니다.
           </p>
-          {generateMutation.isError && (
+          {hasError && (
             <p className="mb-3 rounded-field bg-danger-soft px-3 py-2 text-body text-danger">
-              보고서 생성에 실패했습니다. 다시 시도해 주세요.
+              {errorMessage ?? '보고서 생성에 실패했습니다.'} 다시 시도해 주세요.
             </p>
           )}
           {existing && (
@@ -125,7 +142,18 @@ export function MonthlyReportTab({ student }: { student: Student }) {
                 >
                   기존 보고서 보기
                 </Button>
-                <Button variant="secondary" size="sm" onClick={() => generateMutation.mutate()}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    ai.start({
+                      task: 'monthly_report',
+                      studentId: student.id,
+                      targetMonth,
+                      note: note.trim() || undefined,
+                    })
+                  }
+                >
                   그래도 생성
                 </Button>
               </div>
@@ -158,6 +186,7 @@ export function MonthlyReportTab({ student }: { student: Student }) {
             <Button
               variant="secondary"
               onClick={() => {
+                if (ai.failedJob) ai.dismiss(ai.failedJob.id)
                 setCreating(false)
                 setExisting(null)
               }}
@@ -165,7 +194,7 @@ export function MonthlyReportTab({ student }: { student: Student }) {
               취소
             </Button>
             <Button disabled={!targetMonth || Boolean(existing)} onClick={handleGenerate}>
-              {generateMutation.isError ? '재시도' : 'AI 보고서 생성'}
+              {hasError ? '재시도' : 'AI 보고서 생성'}
             </Button>
           </div>
         </div>
