@@ -175,6 +175,20 @@ generateMonthlyReport(input: { studentId: string; targetMonth: string }): Promis
    - 월간 보고서: 메모·활동이 있는 학생으로 생성 → 섹션 매핑·서버 컨텍스트 반영 확인
 4. 실패 모드 재현 확인: 번복 결정·미정 사항이 포함된 샘플 입력으로 검증 패스가 경고를 내는지 확인
 
+## 비동기 잡 모델 (후속, 2026-07-20)
+
+동기 호출(브라우저 fetch가 2-패스 완료까지 연결 유지)의 4가지 문제 — 지연·가짜 진행표시·이탈 시 유실·150초 초과 실패("Failed to load") — 를 해결하기 위해 생성을 서버측 `ai_jobs` 잡으로 분리했다. 설계 결정과 구현 위치:
+
+- **데이터**: `ai_jobs`(마이그레이션 `0013`) — `status`(queued/running/succeeded/failed)·`stage`(context/generating/verifying/done)·`input`(원문 보존)·`result`·`error_*`·`consumed_at`. `(student_id, task)` 부분 unique 인덱스로 활성 잡 1개(중복 차단). RLS는 `can_access_student` 직접 패턴.
+- **서버**: `ai-generate`가 잡을 INSERT하고 `{ job_id }`를 즉시 202로 반환한 뒤, `EdgeRuntime.waitUntil`로 2-패스를 백그라운드 처리하며 단계마다 `stage`를 갱신한다(`jobs.ts`, `tasks/*`의 `onStage` 콜백). **상태 쓰기는 service_role**(JWT 만료 대비), **컨텍스트 읽기는 user JWT**(RLS 유지). 시작 전 오래된 활성 잡을 실패로 정리(`reapStaleJobs`, ~160초). 일시오류(429/529)는 `callClaudeJson`에서 백오프 재시도.
+- **클라이언트**: `AiService`를 잡 계약(`startJob`/`fetchActiveJob`/`markJobConsumed`)으로 재정의. `useAiJob` 훅이 폴링(2.5초, TanStack Query `refetchInterval`)·마운트 복구·완료(succeeded 감지 → `onSucceeded` 1회 → consumed)·stale 판정을 캡슐화한다. 3개 탭(+카카오 상세 재분석)이 사용.
+- **가시성**: "해당 탭 복귀" — 같은 학생·탭으로 돌아오면 진행/완료/실패를 복구. 완료 시 결과를 편집기/상세로 자동 오픈. 크로스-앱 인디케이터·다중 잡 UI는 범위 외.
+- **카카오 create vs regenerate**: 같은 `kakao_analysis` task를 공유하므로 완료 처리를 `input.analysis_id` 유무로 분기(`applyKakaoJobResult`) — 어느 화면이 떠 있든 일관 동작. 잡 소유는 `KakaoAnalysisTab` 한 곳(목록/상세 동시 마운트 시 중복 실행 방지).
+
+**속도 라운드 (2026-07-21, 완료):** 실제 생성 시간을 줄였다. (1) **검증 패스 필드 패치** — 문서 전체 재출력 → `{ warnings, corrections }`(생성 스키마 동일 필드 전부 optional, 고친 필드만), 서버가 `{...generated, ...corrections}` 병합. `verify.ts`의 `verifySchema`/`verifyResult`, 3개 task 공유. 자동 교정 유지 + 검증 출력 급감. (2) **생성 effort `low`** — `claude-sonnet-5`는 `thinking` 미지정 시 adaptive가 effort `high`로 켜지던 것을 `GEN_EFFORT='low'`(`claude.ts`)로 낮춤, `callClaudeJson`의 optional `effort`로 생성 호출에만 전달(검증 Haiku는 effort 400이라 미지정 유지).
+
+**다음 라운드 후보**: 생성 스트리밍(체감 지연), Supabase Pro(wall-clock 400초). 외부 인프라(AWS/NCP)는 AI 지연을 줄이지 못해(Anthropic은 어디서든 US 호출) 현 규모에선 불필요.
+
 ## 범위 외 (향후 확장)
 
 - **주간 요약**: UI 구현 시 `weekly_summary` task 추가
