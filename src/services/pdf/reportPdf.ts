@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import { addFonts, addVirtualFileSystem, createPdf } from 'pdfmake/build/pdfmake'
+import * as pdfMake from 'pdfmake/build/pdfmake'
 import type { Column, Content, TDocumentDefinitions } from 'pdfmake/interfaces'
 import { notoSansKrVfs } from './notoSansKrVfs.generated'
 
@@ -11,9 +11,9 @@ let fontsRegistered = false
 
 function ensureFontsRegistered() {
   if (fontsRegistered) return
-  addVirtualFileSystem(notoSansKrVfs)
+  pdfMake.addVirtualFileSystem(notoSansKrVfs)
   // Noto Sans KR은 별도 이탤릭 웨이트가 없어 italics/bolditalics도 각각 Regular/Bold로 대체한다.
-  addFonts({
+  pdfMake.addFonts({
     [FONT_FAMILY]: {
       normal: 'NotoSansKR-Regular.woff2',
       bold: 'NotoSansKR-Bold.woff2',
@@ -168,5 +168,5 @@ export async function generateReportPdf(input: GenerateReportPdfInput): Promise<
       ...body,
     ],
   }
-  await createPdf(docDefinition).download(`${sanitizeFilename(input.filename)}.pdf`)
+  await pdfMake.createPdf(docDefinition).download(`${sanitizeFilename(input.filename)}.pdf`)
 }
