@@ -15,14 +15,14 @@
 
 - 새 모듈 `src/services/pdf/reportPdf.ts`가 `generateReportPdf(input): Promise<void>`를 export한다.
   - 입력: `{ title, meta: { studentLine, periodLabel, periodValue, authorLine, methodLabel } , doc: ProseMirror JSON, filename }` (정확한 meta 필드 구성은 구현 단계에서 현재 메타 정보 블록 JSX를 그대로 옮기며 확정)
-  - 내부에서 `pdfmake`와 한글 폰트(Noto Sans KR Regular+Bold, base64 TTF를 담은 vfs 모듈)를 로드하고, `pdfMake.createPdf(docDefinition).download(filename)`으로 즉시 파일을 저장한다.
+  - 내부에서 `pdfmake`와 한글 폰트(Pretendard Regular+Bold, base64 OTF를 담은 vfs 모듈 — 앱 UI와 동일 서체)를 로드하고, `pdfMake.createPdf(docDefinition).download(filename)`으로 즉시 파일을 저장한다.
 - `ReportEditorModal.tsx`의 `handlePdf`:
   - `window.print()` 호출과 `document.title` 스왑 로직을 제거한다.
   - async 함수가 되어 `await import('@/services/pdf/reportPdf')`로 동적 로딩한 뒤, 현재 `title`/메타 state/`editor.getJSON()`을 모아 `generateReportPdf(...)`를 호출한다.
   - **파일명은 보고서 title 그대로 사용**한다(`{title}.pdf`). 파일시스템에 쓸 수 없는 문자(`/ \ : * ? " < > |` 등)는 다운로드 전에 제거/치환한다.
   - 생성 중에는 PDF 버튼에 스피너 표시 + 비활성화(중복 클릭 방지). pdfmake·폰트 데이터는 동적 import이므로 첫 클릭 시 다운로드 지연이 있을 수 있어 로딩 피드백이 필요하다.
   - 생성 실패 시 한국어 에러 메시지를 노출한다(구체 UI 컴포넌트는 기존 앱의 에러 노출 패턴을 재사용 — 구현 계획 단계에서 확정).
-- 번들 크기 관리: `pdfmake` 본체와 폰트 데이터는 메인 번들에 포함하지 않고 동적 import로 분리한다. Noto Sans KR 전체 글리프셋을 담아야 하므로(두 굵기 합산 대략 10MB대) 앱 초기 로드에는 영향이 없고, PDF 버튼을 처음 누를 때만 받아 브라우저 캐시에 남는다.
+- 번들 크기 관리: `pdfmake` 본체와 폰트 데이터는 메인 번들에 포함하지 않고 동적 import로 분리한다. Pretendard 정적 OTF 두 굵기 합산 대략 4MB대라 앱 초기 로드에는 영향이 없고, PDF 버튼을 처음 누를 때만 받아 브라우저 캐시에 남는다.
 
 ## 본문(Markdown 문서) → PDF 매핑
 
@@ -64,5 +64,6 @@
    - 파일이 즉시 다운로드되는지(인쇄 대화상자 없이)
    - 파일명이 보고서 title로 저장되는지
    - 제목(1~3단계)·리스트(순서/비순서)·인용문·구분선·체크리스트(완료/미완료)·굵게/기울임이 포함된 문서로 PDF를 열어 레이아웃이 깨지지 않는지
-   - 한글 텍스트가 임베드된 Noto Sans KR로 정상 렌더링되고, PDF 뷰어에서 텍스트 선택/검색이 되는지
+   - 한글 텍스트가 임베드된 Pretendard로 정상 렌더링되고, PDF 뷰어에서 텍스트 선택/검색이 되는지
+   - 본문에 화살표(→ 등) 문자가 있는 문서에서 글리프가 깨지지 않고 렌더링되는지
    - 여러 페이지로 넘어가는 긴 문서에서 리스트 항목이 페이지 중간에서 잘리지 않는지
