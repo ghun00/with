@@ -446,10 +446,11 @@ export function ReportEditorModal({
 
                 {/* 보고서 기본정보 — 제목 하단 보조 정보, 구분선으로 콘텐츠와 분리 (editReport.md §2) */}
                 <div className="border-b border-line/60 pb-4">
-                  <p className="text-[15px] font-medium text-fg">
-                    {student.name} · {student.school} {student.grade}
-                  </p>
-                  <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-fg-secondary">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-fg-secondary">
+                    <span>
+                      {student.name} · {student.school} {student.grade}
+                    </span>
+                    <span className="text-line-strong">|</span>
                     <span className="inline-flex items-center gap-1.5">
                       <span className="text-fg-tertiary">{periodLabel}</span>
                       {editing && draft.kind === 'counsel' ? (
