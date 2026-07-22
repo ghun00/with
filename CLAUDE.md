@@ -78,7 +78,7 @@ Reusable primitives are in `src/components/motion/index.tsx` (`FadeIn`, `Stagger
 
 Tokens live in `src/index.css` under `@theme` (Tailwind v4 CSS-first config). Full rules (accent usage, CTA placement, badge tone conventions) and component inventory: `docs/superpowers/specs/2026-07-18-design-system.md`.
 
-Exception: `ReportEditorModal` (the shared 상담·월간 보고서 editor) intentionally uses a borderless title input and arbitrary px type sizes instead of Field components — that's spec'd editor styling, not a pattern to copy elsewhere. Its Markdown document body is rendered by Tiptap and styled via the `.report-doc .tiptap …` block at the bottom of `src/index.css` (utilities can't reach Tiptap's internal nodes) — the print rules there (`@media print`, `.print-area`) also live-depend on that markup, so keep them in sync when changing editor output.
+Exception: `ReportEditorModal` (the shared 상담·월간 보고서 editor) intentionally uses a borderless title input and arbitrary px type sizes instead of Field components — that's spec'd editor styling, not a pattern to copy elsewhere. Its Markdown document body is rendered by Tiptap and styled via the `.report-doc .tiptap …` block at the bottom of `src/index.css` (utilities can't reach Tiptap's internal nodes). PDF export (`src/services/pdf/reportPdf.ts`) does **not** depend on this CSS — it walks the editor's ProseMirror JSON (`editor.getJSON()`) directly and maps it to `pdfmake` content (see `docs/superpowers/specs/2026-07-22-report-pdf-export-design.md`), independent of `window.print()`/`@media print`, which this feature replaced.
 
 ## Path alias
 
