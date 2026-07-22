@@ -183,6 +183,7 @@ export function ReportEditorModal({
     setSavedId(null)
     setDirty(false)
     setCopied(false)
+    setPdfState('idle')
   }, [draft, editor])
 
   useEffect(() => {
