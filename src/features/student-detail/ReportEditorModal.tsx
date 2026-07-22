@@ -428,7 +428,7 @@ export function ReportEditorModal({
 
             {/* 본문 스크롤 영역 — 제목·기본정보·Markdown 문서가 하나의 문서로 이어진다 */}
             <div className="report-scroll flex-1 overflow-y-auto px-10 py-7 max-sm:px-5">
-              <div className="print-area mx-auto max-w-2xl">
+              <div className="mx-auto max-w-2xl">
                 {/* 보고서 제목 — 본문 최상위 H1 (editReport.md §2) */}
                 {editing ? (
                   <input

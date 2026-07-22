@@ -85,60 +85,6 @@ body {
   font-family: var(--font-sans);
 }
 
-/* 보고서 PDF 다운로드: Report Modal의 문서(.print-area)만 A4 인쇄 스타일로 출력한다.
-   화면 캡처가 아닌 인쇄 전용 레이아웃 — 헤더 버튼/블록 핸들/모달 배경·그림자는 제외된다. */
-@page {
-  size: A4;
-  margin: 16mm;
-}
-
-@media print {
-  body {
-    background: #fff;
-  }
-  body:has(.print-area) * {
-    visibility: hidden;
-  }
-  .print-area,
-  .print-area * {
-    visibility: visible;
-  }
-  /* 모달의 고정 높이·스크롤이 여러 페이지 출력을 잘라내지 않도록 해제 */
-  .report-overlay {
-    position: static !important;
-    padding: 0 !important;
-  }
-  .report-panel {
-    position: static !important;
-    height: auto !important;
-    max-height: none !important;
-    box-shadow: none !important;
-    transform: none !important;
-  }
-  .report-scroll {
-    overflow: visible !important;
-    height: auto !important;
-    padding: 0 !important;
-  }
-  .print-area {
-    position: absolute;
-    inset: 0 auto auto 0;
-    width: 100%;
-  }
-  /* 소제목이 다음 본문과 다른 페이지로 분리되지 않도록 하고, 목록 항목은 중간에서 자르지 않는다 */
-  .print-area :is(h1, h2, h3) {
-    break-after: avoid;
-  }
-  .print-area li {
-    break-inside: avoid;
-  }
-  /* 체크리스트 완료·미완료 색상이 인쇄에도 유지되도록 한다 */
-  .print-area input[type='checkbox'] {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-}
-
 /* 노션형 Markdown WYSIWYG 본문 스타일 — Tiptap이 출력하는 시맨틱 HTML을 문서 서식으로 렌더한다.
    유틸리티로 내부 노드를 스타일할 수 없어 스코프 클래스로 지정한다(에디터 스타일 예외 영역). */
 .report-doc .tiptap {
