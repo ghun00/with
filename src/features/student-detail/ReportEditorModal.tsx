@@ -307,19 +307,32 @@ export function ReportEditorModal({
     copiedTimer.current = window.setTimeout(() => setCopied(false), 1500)
   }
 
-  // PDF 다운로드: 보고서 전용 인쇄 스타일(@media print)로 출력하고,
-  // 파일명은 document.title을 통해 "{일자}_{학생명}_{보고서종류}"로 지정한다 (editReport.md §8)
-  const handlePdf = () => {
-    const base =
-      draft?.kind === 'monthly'
-        ? `${draft.targetMonth ? formatTargetMonth(draft.targetMonth) : ''}_${student.name}_월간보고서`
-        : `${counselDate ? formatDate(counselDate) : formatDate(new Date())}_${student.name}_상담보고서`
-    const prev = document.title
-    document.title = base
-    window.print()
-    window.setTimeout(() => {
-      document.title = prev
-    }, 500)
+  // PDF 다운로드: pdfmake로 직접 벡터 PDF를 생성해 즉시 다운로드한다(브라우저 인쇄창을 거치지 않음).
+  // 파일명은 보고서 제목 그대로 사용한다.
+  const [pdfState, setPdfState] = useState<'idle' | 'generating' | 'error'>('idle')
+
+  const handlePdf = async () => {
+    if (!draft || pdfState === 'generating') return
+    setPdfState('generating')
+    try {
+      const { generateReportPdf } = await import('@/services/pdf/reportPdf')
+      await generateReportPdf({
+        title,
+        meta: {
+          studentLine: `${student.name} · ${student.school} ${student.grade}`.trim(),
+          periodLabel,
+          periodValue,
+          authorName,
+          methodLabel: COUNSEL_REPORT_METHOD_LABEL[draft.method],
+        },
+        doc: editor?.getJSON() ?? { type: 'doc', content: [] },
+        filename: title,
+      })
+      setPdfState('idle')
+    } catch (error) {
+      console.error(error)
+      setPdfState('error')
+    }
   }
 
   const editing = mode === 'edit'
@@ -383,12 +396,17 @@ export function ReportEditorModal({
                     )}
                   </button>
                   <button
-                    onClick={handlePdf}
+                    onClick={() => void handlePdf()}
+                    disabled={pdfState === 'generating'}
                     title="PDF 다운로드"
-                    className="rounded-field p-1.5 text-fg-tertiary transition-colors hover:bg-sunken hover:text-fg"
+                    className="rounded-field p-1.5 text-fg-tertiary transition-colors hover:bg-sunken hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="PDF 다운로드"
                   >
-                    <DownloadIcon />
+                    {pdfState === 'generating' ? (
+                      <span className="block h-4 w-4 animate-spin rounded-full border-2 border-line border-t-fg" />
+                    ) : (
+                      <DownloadIcon />
+                    )}
                   </button>
                   <Button variant="secondary" size="sm" onClick={startEditing}>
                     편집
@@ -459,6 +477,11 @@ export function ReportEditorModal({
                 {saveMutation.isError && (
                   <p className="mt-3 rounded-field bg-danger-soft px-3 py-2 text-body text-danger">
                     저장에 실패했습니다. 다시 시도해 주세요.
+                  </p>
+                )}
+                {pdfState === 'error' && (
+                  <p className="mt-3 rounded-field bg-danger-soft px-3 py-2 text-body text-danger">
+                    PDF 생성에 실패했습니다. 다시 시도해 주세요.
                   </p>
                 )}
 
