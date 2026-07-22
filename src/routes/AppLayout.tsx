@@ -43,9 +43,7 @@ export function AppLayout() {
     <div className="flex h-screen">
       <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-surface">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-fg text-label font-bold text-surface">
-            W
-          </div>
+          <img src="/logo_with.png" alt="WITH" className="h-8 w-8 shrink-0 rounded-[10px]" />
           {memberships.length > 1 ? (
             <select
               value={current.group.id}
