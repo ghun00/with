@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import * as pdfMake from 'pdfmake/build/pdfmake'
+import pdfMake from 'pdfmake/build/pdfmake'
 import type { Column, Content, TDocumentDefinitions } from 'pdfmake/interfaces'
 import { notoSansKrVfs } from './notoSansKrVfs.generated'
 
@@ -15,10 +15,10 @@ function ensureFontsRegistered() {
   // Noto Sans KR은 별도 이탤릭 웨이트가 없어 italics/bolditalics도 각각 Regular/Bold로 대체한다.
   pdfMake.addFonts({
     [FONT_FAMILY]: {
-      normal: 'NotoSansKR-Regular.woff2',
-      bold: 'NotoSansKR-Bold.woff2',
-      italics: 'NotoSansKR-Regular.woff2',
-      bolditalics: 'NotoSansKR-Bold.woff2',
+      normal: 'NotoSansKR-Regular.ttf',
+      bold: 'NotoSansKR-Bold.ttf',
+      italics: 'NotoSansKR-Regular.ttf',
+      bolditalics: 'NotoSansKR-Bold.ttf',
     },
   })
   fontsRegistered = true
