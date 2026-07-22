@@ -1,9 +1,11 @@
 import type { JSONContent } from '@tiptap/core'
 import pdfMake from 'pdfmake/build/pdfmake'
 import type { Column, Content, TDocumentDefinitions } from 'pdfmake/interfaces'
-import { notoSansKrVfs } from './notoSansKrVfs.generated'
+import { pretendardVfs } from './pretendardVfs.generated'
 
-const FONT_FAMILY = 'NotoSansKR'
+// 앱 UI 폰트(index.css --font-sans)와 동일한 Pretendard를 사용한다 — 화면과 PDF의 서체 일관성 + Noto Sans KR
+// 'korean' 서브셋에는 없던 화살표(→ 등) 글리프도 Pretendard 정적 빌드엔 포함돼 있어 함께 해결된다.
+const FONT_FAMILY = 'Pretendard'
 // A4(595.28pt) 기준 좌우 여백 45pt(≈16mm)를 뺀 본문 폭 — 구분선(horizontalRule) 길이에 사용
 const CONTENT_WIDTH = 505
 
@@ -11,14 +13,14 @@ let fontsRegistered = false
 
 function ensureFontsRegistered() {
   if (fontsRegistered) return
-  pdfMake.addVirtualFileSystem(notoSansKrVfs)
-  // Noto Sans KR은 별도 이탤릭 웨이트가 없어 italics/bolditalics도 각각 Regular/Bold로 대체한다.
+  pdfMake.addVirtualFileSystem(pretendardVfs)
+  // Pretendard는 별도 이탤릭 웨이트가 없어 italics/bolditalics도 각각 Regular/Bold로 대체한다.
   pdfMake.addFonts({
     [FONT_FAMILY]: {
-      normal: 'NotoSansKR-Regular.ttf',
-      bold: 'NotoSansKR-Bold.ttf',
-      italics: 'NotoSansKR-Regular.ttf',
-      bolditalics: 'NotoSansKR-Bold.ttf',
+      normal: 'Pretendard-Regular.otf',
+      bold: 'Pretendard-Bold.otf',
+      italics: 'Pretendard-Regular.otf',
+      bolditalics: 'Pretendard-Bold.otf',
     },
   })
   fontsRegistered = true
