@@ -160,9 +160,8 @@ export async function generateReportPdf(input: GenerateReportPdfInput): Promise<
     defaultStyle: { font: FONT_FAMILY, fontSize: 10.5, lineHeight: 1.4 },
     content: [
       { text: input.title, fontSize: 19, bold: true, margin: [0, 0, 0, 10] },
-      { text: input.meta.studentLine, fontSize: 10.5, bold: true, margin: [0, 0, 0, 2] },
       {
-        text: `${input.meta.periodLabel} ${input.meta.periodValue}   |   담당 컨설턴트 ${input.meta.authorName}   |   ${input.meta.methodLabel}`,
+        text: `${input.meta.studentLine}   |   ${input.meta.periodLabel} ${input.meta.periodValue}   |   담당 컨설턴트 ${input.meta.authorName}   |   ${input.meta.methodLabel}`,
         fontSize: 9,
         color: '#6b7280',
         margin: [0, 0, 0, 14],
