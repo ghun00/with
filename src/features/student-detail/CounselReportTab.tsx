@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { AiJob, CounselReportResult } from '@/services/ai'
+import { MAX_AI_SOURCE_LENGTH, type AiJob, type CounselReportResult } from '@/services/ai'
 import { counselResultToSections, fetchCounselReports, sectionsToMarkdown } from '@/services/aiReports'
 import { useAiJob } from './useAiJob'
 import { formatDate, formatDateTime } from '@/lib/format'
@@ -136,7 +136,9 @@ export function CounselReportTab({ student }: { student: Student }) {
               취소
             </Button>
             <Button
-              disabled={!sourceText.trim()}
+              disabled={
+                !sourceText.trim() || sourceText.trim().length > MAX_AI_SOURCE_LENGTH
+              }
               onClick={() =>
                 ai.start({ task: 'counsel_report', studentId: student.id, rawText: sourceText.trim() })
               }

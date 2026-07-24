@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { AiJob } from '@/services/ai'
+import { MAX_AI_SOURCE_LENGTH, type AiJob } from '@/services/ai'
 import {
   applyKakaoJobResult,
   fetchKakaoAnalyses,
@@ -179,7 +179,12 @@ export function KakaoAnalysisTab({ studentId }: { studentId: string }) {
               취소
             </Button>
             <Button
-              disabled={!sourceText.trim() || checkMutation.isPending || Boolean(duplicate)}
+              disabled={
+                !sourceText.trim() ||
+                sourceText.trim().length > MAX_AI_SOURCE_LENGTH ||
+                checkMutation.isPending ||
+                Boolean(duplicate)
+              }
               onClick={() => checkMutation.mutate()}
             >
               {checkMutation.isPending

@@ -62,14 +62,14 @@ export function AiSourceInput({
           </Button>
           {fileError && <span className="text-caption text-danger">{fileError}</span>}
         </div>
-        <span className={`text-caption ${over ? 'text-warning' : 'text-fg-tertiary'}`}>
+        <span className={`text-caption ${over ? 'text-danger' : 'text-fg-tertiary'}`}>
           {value.length.toLocaleString()} / {maxLength.toLocaleString()}자
         </span>
       </div>
       {over && (
-        <p className="mt-2 rounded-field bg-warning-soft px-3 py-2 text-caption text-warning">
-          {maxLength.toLocaleString()}자 이내를 추천드립니다. 원문이 길면 생성 시간이 오래 걸리거나
-          실패할 수 있습니다.
+        <p className="mt-2 rounded-field bg-danger-soft px-3 py-2 text-caption text-danger">
+          원문이 최대 길이를 넘었습니다. 약 {(value.length - maxLength).toLocaleString()}자를 줄이거나
+          내용을 나눠서 등록해 주세요.
         </p>
       )}
       <input
